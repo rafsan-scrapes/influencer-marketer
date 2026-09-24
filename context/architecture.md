@@ -18,6 +18,7 @@ Vite + vanilla JS + Tailwind CSS (v3). No framework. Static site; `npm run build
 | `src/brands.js` (Unit 4) | Brands tab DOM (upload, table, status) + Email Template header chips; reads/writes `brands` | No AI calls, no placeholder substitution |
 | `src/templateEditor.js` (Unit 6) | Email Template tab DOM (chips, default block, condition blocks); state in `templates`, headers via `brands` + `im:headers-changed` | No `fetch`, no placeholder substitution |
 | `src/runner.js` (Unit 7) | Sequential run pipeline (`runRows`, column helpers); statuses via callback, results returned in-memory | No DOM; persistence owned by Unit 8 |
+| `src/runs.js` (Unit 8) | Runs tab DOM (newest-first entries, copy+toast, clear all); `makeRunEntry`, `refreshRuns` called by brands.js after each run | No `fetch`, no placeholder logic |
 | `src/templates.js` (Unit 5) | Sole module for placeholder resolution: `extractPlaceholders`, `substitutePlaceholders`, `evaluateConditions`, `buildPromptPayload` | No `fetch`, no DOM |
 | `src/test/sample.csv` | 2–3 row fixture trimmed from `reachingoutsofar.csv` (original untouched) | Never edited once created |
 

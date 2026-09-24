@@ -4,11 +4,11 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-Unit 8
+Phase 1 (Brand outreach generator): complete — all 9 units verified. Remaining: manual browser passes with a real API key.
 
 ## Current Goal
 
-Unit 8 — Runs Tab.
+Manual browser pass (real key + live run), then Phase 1.1 if CORS blocks.
 
 ## Completed
 
@@ -21,6 +21,8 @@ Unit 8 — Runs Tab.
 - Unit 5 — Template Engine done: `src/templates.js` (`extractPlaceholders` unique-in-order, `substitutePlaceholders` case-insensitive with `"[Name] is empty in CSV for this row"` throw, `evaluateConditions` first-AND-match else default, `buildPromptPayload` → `{ system, userContent }` fully substituted) plus `src/templates.test.js` (12 Vitest tests on a hardcoded 2-row sample, `npm test`). Judgment calls: condition equals/contains compare case-insensitively on trimmed values; `isEmpty` = trimmed empty; `evaluateConditions` takes an optional third `defaultBlock` param (null when omitted). Verify passed: `npm test` 12/12; `npm run build` exits 0.
 - Unit 6 — Email Template Tab UI done: `src/templateEditor.js` (clickable chips inserting `[Column]` at cursor in the focused Subject/Body/Prompt box; default Subject/Body/Prompt; condition blocks with add/delete/up/down, multi-row AND conditions with column select-or-text, op dropdown, value input auto-disabled for `isEmpty`; all state persisted to `templates` on every input/change, restored on load; chips/columns refresh on `im:headers-changed` dispatched by `brands.js`). Judgment calls: condition column is a header `<select>` when a CSV is loaded, free-text input otherwise; one condition row minimum per block. Verify passed: `npm test` 20/20 (8 new jsdom tests: typing persists + reload restores, block add/fill/reload, delete, reorder, AND rows, chip-at-cursor insertion, headers event); `npm run build` exits 0. Manual browser pass still needed: chip click inserts at cursor; reload restores blocks.
 - Unit 7 — Row Selection and Sequential Run done: `src/runner.js` (`runRows` iterates selected indices with `await`, per-row evaluate → substitute (throw → error with column name) → skip when Subject+Body both blank → `buildPromptPayload` → `sendMessage`; `brandNameFor`/`emailSequenceFor` helpers; results returned in-memory, NOT persisted — that is Unit 8) and Brands UI in `src/brands.js` (checkbox column, Select All/Deselect All, Run button, live idle/generating/done/error/skipped pills with inline messages, buttons disabled mid-run, selection defaults to all rows, statuses reset per run). Judgment calls: whitespace-only Subject+Body counts as empty (skip); `im:headers-changed` now fires only when headers actually change (paint runs per status update). Verify passed: `npm test` 30/30 (10 new: done/error/done sequence with exact status transitions, skip without fetch, auth failure → error, result shape, column helpers, checkbox/status rendering, escaping); `npm run build` exits 0. Manual browser pass still needed: 3-row run with row-2 empty cell shows live statuses.
+- Unit 8 — Runs Tab done: `src/runs.js` (`makeRunEntry`, newest-first render with brand name, sequence value, timestamp, Subject/Body copy buttons via `navigator.clipboard` + toast, Clear All Runs) and `src/brands.js` run handler now saves one `RunEntry` per successful row and calls `refreshRuns()`. Judgment call: entry subject = substituted template subject, entry body = AI-completed email (falls back to substituted body when the model returns nothing) — the AI returns a single text, so it cannot be split reliably. Verify passed: `npm test` 36/36 (6 new: entry shape, newest-first order, exact-text clipboard copy for subject+body, clear-all empties UI+store persistently, end-to-end run→2 entries rendered newest-first); `npm run build` exits 0. Manual browser pass still needed: copy buttons hit the real clipboard; clear-all survives reload.
+- Unit 9 — Persistence Verification and Build Pass done: `src/persistence.test.js` boots the real `index.html` + `main.js` in jsdom, seeds config + 2-block template + 3-row CSV + 1 run entry, reloads with fresh modules/DOM, and asserts all state restores (config values with password key field, default + both condition blocks with values and column selects, 3-row table all selected, chips, runs entry; store intact). `dist/` deleted and rebuilt from scratch: `npm run build` exits 0 with no app-code warnings. `npm run preview` smoke-tested: HTTP 200 with app title. Verify passed: `npm test` 37/37; build exits 0; preview OK.
 
 ## In Progress
 

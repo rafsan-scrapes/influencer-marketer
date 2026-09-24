@@ -7,6 +7,7 @@
 import { store } from "./store.js";
 import { parseCsv } from "./csv.js";
 import { runRows } from "./runner.js";
+import { makeRunEntry, refreshRuns } from "./runs.js";
 
 export function escapeHtml(value) {
   return String(value == null ? "" : value)
@@ -195,7 +196,7 @@ export function initBrands() {
       resetStatuses();
       if (runStatus) runStatus.textContent = `Running ${indices.length} row${indices.length === 1 ? "" : "s"}…`;
       try {
-        await runRows({
+        const results = await runRows({
           rows,
           indices,
           templates: store.getTemplates(),
@@ -205,6 +206,21 @@ export function initBrands() {
             paint();
           }
         });
+        // Persist one entry per successful row (Unit 8). Subject is the
+        // substituted template subject; body is the AI-completed email
+        // (falling back to the substituted body when the model says nothing).
+        for (const r of results) {
+          if (r.status !== "done") continue;
+          store.addRun(
+            makeRunEntry({
+              brandName: r.brandName,
+              emailSequence: r.emailSequence,
+              subject: r.subject,
+              body: r.content && r.content.trim() !== "" ? r.content : r.body
+            })
+          );
+        }
+        refreshRuns();
       } finally {
         running = false;
         setRunUiEnabled(true);

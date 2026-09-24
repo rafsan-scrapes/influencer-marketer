@@ -3,6 +3,7 @@ import { store } from "./store.js";
 import { initAiConfig } from "./aiConfig.js";
 import { initBrands } from "./brands.js";
 import { initTemplateEditor } from "./templateEditor.js";
+import { initRuns } from "./runs.js";
 
 // Exposed for browser-console verification (Unit 2 verify step).
 window.store = store;
@@ -10,6 +11,7 @@ window.store = store;
 initAiConfig();
 initBrands();
 initTemplateEditor();
+initRuns();
 
 const ACTIVE = ["bg-slate-900", "text-white"];
 const INACTIVE = ["bg-white", "text-slate-700", "hover:bg-slate-200"];
