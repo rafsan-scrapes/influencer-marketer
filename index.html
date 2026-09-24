@@ -85,11 +85,23 @@
         </section>
         <section id="panel-email-template" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
           <h2 class="mb-2 text-lg font-semibold">Email Template</h2>
+          <div id="template-chips" class="mb-4 flex flex-wrap gap-2">
+            <p class="text-sm text-slate-500">Upload a CSV on the Brands tab to see column chips.</p>
+          </div>
           <p class="text-sm text-slate-600">Default block, condition blocks, and column chips go here (Unit 6).</p>
         </section>
         <section id="panel-brands" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
-          <h2 class="mb-2 text-lg font-semibold">Brands</h2>
-          <p class="text-sm text-slate-600">CSV upload and rows table go here (Unit 4).</p>
+          <h2 class="mb-4 text-lg font-semibold">Brands</h2>
+          <div class="mb-2 flex items-center gap-3">
+            <label for="brands-file" class="cursor-pointer rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
+              Upload CSV
+            </label>
+            <input id="brands-file" type="file" accept=".csv,text/csv" class="hidden" />
+            <span id="brands-status" role="status" class="text-sm text-slate-600"></span>
+          </div>
+          <div id="brands-table" class="mt-4">
+            <p class="text-sm text-slate-500">No CSV loaded yet.</p>
+          </div>
         </section>
         <section id="panel-runs" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
           <h2 class="mb-2 text-lg font-semibold">Runs</h2>

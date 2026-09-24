@@ -7,7 +7,7 @@ export const STORE_VERSION = 1;
 
 export const DEFAULT_ENDPOINT = "http://localhost:4096";
 
-const DOMAINS = ["config", "templates", "runs"];
+const DOMAINS = ["config", "templates", "runs", "brands"];
 
 function keyFor(domain) {
   return `im_${domain}.v${STORE_VERSION}`;
@@ -21,6 +21,8 @@ function defaultFor(domain) {
       return { default: { subject: "", body: "", prompt: "" }, conditions: [] };
     case "runs":
       return [];
+    case "brands":
+      return { fileName: "", headers: [], rows: [] };
     default:
       throw new Error(`store: unknown domain "${domain}"`);
   }
@@ -83,6 +85,13 @@ function coerce(domain, value) {
         typeof value.endpoint === "string" && value.endpoint.length > 0
           ? value.endpoint
           : DEFAULT_ENDPOINT
+    };
+  }
+  if (domain === "brands") {
+    return {
+      fileName: typeof value.fileName === "string" ? value.fileName : "",
+      headers: Array.isArray(value.headers) ? value.headers.filter((h) => typeof h === "string") : [],
+      rows: Array.isArray(value.rows) ? value.rows.filter(isPlainObject) : []
     };
   }
   // templates
@@ -154,6 +163,17 @@ export const store = {
   },
   clearRuns() {
     return this.setRuns([]);
+  },
+
+  // Typed accessors — brands (loaded CSV; replaced on each upload, never clears runs)
+  getBrands() {
+    return this.get("brands");
+  },
+  setBrands(value) {
+    return this.set("brands", value);
+  },
+  clearBrands() {
+    return this.setBrands({ fileName: "", headers: [], rows: [] });
   }
 };
 

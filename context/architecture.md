@@ -14,16 +14,18 @@ Vite + vanilla JS + Tailwind CSS (v3). No framework. Static site; `npm run build
 | `src/store.js` (Unit 2) | localStorage wrapper: versioned keys, safe JSON, typed getters/setters | No DOM, no fetch |
 | `src/api.js` (Unit 3) | Sole module allowed to call `fetch` for the AI (`/chat/completions`) | No DOM, no placeholder substitution |
 | `src/aiConfig.js` (Unit 3) | AI Config tab DOM only; restores/persists form via store, Test Connection via api | No `fetch` directly, no placeholder logic |
-| `src/csv.js` (Unit 4) | CSV parsing via PapaParse | No AI calls |
+| `src/csv.js` (Unit 4) | CSV parsing via PapaParse (`parseCsv`/`parseCsvText`, header/row normalization) | No AI calls |
+| `src/brands.js` (Unit 4) | Brands tab DOM (upload, table, status) + Email Template header chips; reads/writes `brands` | No AI calls, no placeholder substitution |
 | `src/templates.js` (Unit 5) | Sole module for placeholder resolution: `extractPlaceholders`, `substitutePlaceholders`, `evaluateConditions`, `buildPromptPayload` | No `fetch`, no DOM |
 | `src/test/sample.csv` | 2–3 row fixture trimmed from `reachingoutsofar.csv` (original untouched) | Never edited once created |
 
 ## localStorage Invariants
 
-- Keys: `im_config.v1`, `im_templates.v1`, `im_runs.v1` (version suffix; bump `STORE_VERSION` to migrate). Versioned; safe JSON parse/stringify (corrupt data → default, never throw to UI).
+- Keys: `im_config.v1`, `im_templates.v1`, `im_runs.v1`, `im_brands.v1` (version suffix; bump `STORE_VERSION` to migrate). Versioned; safe JSON parse/stringify (corrupt data → default, never throw to UI).
 - `im_config`: `{ agentName, apiKey, model, endpoint }` — populated only via AI Config tab.
 - `im_templates`: `{ default: { subject, body, prompt }, conditions: ConditionBlock[] }`.
 - `im_runs`: `RunEntry[]` — appended per successful row, newest-first at render; cleared only via Clear All Runs. New CSV upload must not clear runs.
+- `im_brands`: `{ fileName, headers, rows }` — replaced wholesale on each CSV upload; restored on load so the table and chips survive reload.
 
 ## Data Shapes
 
