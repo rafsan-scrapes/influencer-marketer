@@ -77,13 +77,12 @@ export function evaluateConditions(conditionBlocks, row, defaultBlock = null) {
 
 // Fully substituted { system, userContent } ready for api.sendMessage.
 // Throws via substitutePlaceholders when a used placeholder cell is empty.
-export function buildPromptPayload(block, row, agentName) {
+export function buildPromptPayload(block, row) {
   const subject = substitutePlaceholders(block.subject || "", row);
   const body = substitutePlaceholders(block.body || "", row);
   const instruction = substitutePlaceholders(block.prompt || "", row);
-  const who = agentName && agentName.trim() !== "" ? agentName.trim() : "an outreach assistant";
   const system =
-    `You are ${who}, writing personalised brand outreach emails. ` +
+    `You are an assistant writing personalised brand outreach emails for influencer-marketing sponsorships. ` +
     `Rules: fill in ONLY what the instruction asks for; preserve the Subject and Body text verbatim everywhere else. ` +
     `Be brief, accurate, and professional. Never invent facts about the brand. ` +
     `Reply with the completed email only.`;

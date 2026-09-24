@@ -51,7 +51,7 @@ export async function runRows({ rows, indices, templates, config, onStatus }) {
         results.push({ index, status: "skipped", message: "Subject and Body are both empty." });
         continue;
       }
-      const { system, userContent } = buildPromptPayload(block, row, config.agentName);
+      const { system, userContent } = buildPromptPayload(block, row);
       const res = await sendMessage({
         endpoint: config.endpoint,
         apiKey: config.apiKey,

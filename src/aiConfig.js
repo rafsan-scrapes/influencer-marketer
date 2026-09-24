@@ -18,24 +18,21 @@ function setStatus(el, kind, text) {
 }
 
 export function initAiConfig() {
-  const agent = document.getElementById("cfg-agent");
   const key = document.getElementById("cfg-key");
   const model = document.getElementById("cfg-model");
   const endpoint = document.getElementById("cfg-endpoint");
   const testBtn = document.getElementById("cfg-test");
   const status = document.getElementById("cfg-status");
-  if (!agent || !key || !model || !endpoint || !testBtn || !status) return;
+  if (!key || !model || !endpoint || !testBtn || !status) return;
 
   // Restore persisted values.
   const saved = store.getConfig();
-  agent.value = saved.agentName;
   key.value = saved.apiKey;
   model.value = saved.model;
   endpoint.value = saved.endpoint;
 
   const persist = () => {
     store.setConfig({
-      agentName: agent.value,
       apiKey: key.value,
       model: model.value,
       endpoint: endpoint.value.trim() === "" ? undefined : endpoint.value
@@ -43,7 +40,7 @@ export function initAiConfig() {
     // store coerces an empty endpoint back to the default; reflect it.
     endpoint.value = store.getConfig().endpoint;
   };
-  for (const input of [agent, key, model, endpoint]) {
+  for (const input of [key, model, endpoint]) {
     input.addEventListener("input", persist);
     input.addEventListener("change", persist);
   }

@@ -8,7 +8,7 @@ Phase 1 (Brand outreach generator): complete — all 9 units verified. Remaining
 
 ## Current Goal
 
-Manual browser pass (real key + live run), then Phase 1.1 if CORS blocks.
+Manual browser pass (Bynara key + live run), then Phase 2 (Influencers).
 
 ## Completed
 
@@ -45,7 +45,7 @@ Write `src/store.js`: a localStorage wrapper with versioned keys, safe JSON pars
 ---
 
 ### Unit 3 — AI Config Tab
-Build the AI Config tab UI and `src/api.js`. Fields: agent name, API key (password), model (free text), endpoint (with default). Test Connection button fires a request to the configured endpoint, surfaces success or specific errors (auth, CORS, network). All values persist via `store.js`.
+Build the AI Config tab UI and `src/api.js`. Fields: API key (password), model alias (free text), endpoint (with default). Test Connection button fires a request to the configured endpoint, surfaces success or specific errors (auth, CORS, network). All values persist via `store.js`.
 
 **Verify:** Enter a valid key and model → Test Connection shows success. Enter a bad key → shows auth error. Reload → all fields restored.
 
@@ -63,7 +63,7 @@ Write `src/templates.js`:
 - `extractPlaceholders(text)` → array of column names from `[Column Name]` tokens.
 - `substitutePlaceholders(text, row)` → substituted string, or throws with the specific missing-column name if any used placeholder resolves to an empty string.
 - `evaluateConditions(conditionBlocks, row)` → returns the first matching block (or the default block if none match).
-- `buildPromptPayload(block, row, agentName)` → returns `{ system, userContent }` ready to pass to `src/api.js`.
+- `buildPromptPayload(block, row)` → returns `{ system, userContent }` ready to pass to `src/api.js`.
 
 No UI in this unit. Write inline tests using a hardcoded 2-row sample object.
 
@@ -115,7 +115,7 @@ Reload the app after: config saved, template with 2 condition blocks saved, a CS
 | No backend in Phase 1 | Scope constraint; everything in localStorage. CSV never leaves the browser except as prompt text to the AI endpoint. |
 | `/chat/completions` (OpenAI-compatible) | Only endpoint that works with plain `fetch` and no SDK; uniform across models. |
 | `src/api.js` behind an interface | Lets a proxy replace direct calls in Phase 1.1 without touching the UI. |
-| Model as free-text field | User consults OpenCode Go docs for model names; no stale hardcoded list. |
+| Model as free-text field | User consults Bynara docs for model aliases; no stale hardcoded list. |
 | Placeholders are `[Column Name]`, case-insensitive, from CSV headers | Predictable; chips in the UI make insertion exact. |
 | Empty cell = hard error, not silent substitution | User-filled CSVs are expected to be complete for the columns a template uses; a silent empty string produces a bad email silently. |
 | `[email_sequence]` is a plain CSV column | User controls which email step each row is on before uploading; treated identically to any other column. |
@@ -124,8 +124,8 @@ Reload the app after: config saved, template with 2 condition blocks saved, a CS
 | Sequential (non-concurrent) AI calls | Avoids rate-limit complexity; acceptable for a single-user tool. |
 | One Runs entry per row | Each brand is an independent unit of work; per-row entries are easier to copy from than batches. |
 | Runs persist until manually cleared | User may need results across sessions; explicit Clear All gives control. |
-| Phase 1.1: Vite dev proxy `/go-api` → Zen (no extra server) | Same-origin proxy avoids CORS in dev; production calls Zen directly. |
-| Default endpoint `https://opencode.ai/zen/go/v1`, legacy `http://localhost:4096` auto-migrated | Localhost is the agent server, not the Go chat API; old saved values migrate on load. |
+| Phase 1.1: Vite dev proxy `/bynara-api` → Bynara router (no extra server) | Same-origin proxy avoids CORS in dev; production calls Bynara directly. |
+| Default endpoint `https://router.bynara.id/v1` (Bynara router, OpenAI-compatible); legacy OpenCode/localhost values auto-migrated | Provider switch: no agent name (Bynara has no such concept); key (`sk-nry-…`) + model alias only. Bynara `{ error: { type } }` envelope mapped to auth/rate-limit/config errors. |
 
 ## Session Notes
 

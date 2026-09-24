@@ -1,12 +1,13 @@
 // src/api.js — the ONLY module allowed to call fetch for the AI.
-// OpenAI-compatible `/chat/completions`. No DOM, no placeholder logic.
+// Bynara router (`https://router.bynara.id/v1`), OpenAI-compatible
+// `/chat/completions`. No DOM, no placeholder logic.
 // The API key is passed in per call and never logged.
 
 export const CHAT_COMPLETIONS_PATH = "/chat/completions";
 
 export function resolveChatUrl(endpoint) {
   const base = (endpoint || "").trim().replace(/\/+$/, "");
-  // Relative endpoint (e.g. `/go-api` via the Vite dev proxy) resolves
+  // Relative endpoint (e.g. `/bynara-api` via the Vite dev proxy) resolves
   // against the current origin; absolute URLs pass through untouched.
   if (base.startsWith("/")) {
     if (typeof window !== "undefined" && window.location?.origin) {
@@ -20,7 +21,27 @@ export function resolveChatUrl(endpoint) {
   return base + CHAT_COMPLETIONS_PATH;
 }
 
-function classifyHttpError(status, detail) {
+function classifyHttpError(status, detail, gatewayType) {
+  // Bynara returns `{ error: { type, message } }` — map its types first so
+  // the user sees plan/quota problems instead of a generic HTTP message.
+  if (gatewayType === "forbidden") {
+    return {
+      kind: "auth",
+      message: "Key valid but plan does not include this model (or account suspended)." + (detail ? " " + detail : "")
+    };
+  }
+  if (gatewayType === "rate_limited") {
+    return {
+      kind: "rate-limit",
+      message: "Rate limit or daily token quota reached for this model tier. Other tiers may still work — wait and retry." + (detail ? " " + detail : "")
+    };
+  }
+  if (gatewayType === "validation_error") {
+    return {
+      kind: "config",
+      message: "Request rejected as malformed. Check the model alias." + (detail ? " " + detail : "")
+    };
+  }
   if (status === 401 || status === 403) {
     return {
       kind: "auth",
@@ -51,8 +72,8 @@ function classifyNetworkError(err, url) {
   // from fetch. Say so explicitly rather than guessing.
   const hint =
     url && (url.includes("localhost") || url.includes("127.0.0.1"))
-      ? " That address is a local OpenCode server, which does not serve `/chat/completions`. For OpenCode Go use `https://opencode.ai/zen/go/v1` (or `/go-api` in dev via the Vite proxy)."
-      : " If the URL is correct, the server likely blocked the browser (CORS). In dev, set Endpoint to `/go-api` so Vite proxies the request.";
+      ? " That address is a local server, not the Bynara router. Use `https://router.bynara.id/v1` (or `/bynara-api` in dev via the Vite proxy)."
+      : " If the URL is correct, the server likely blocked the browser (CORS). In dev, set Endpoint to `/bynara-api` so Vite proxies the request.";
   if (err instanceof TypeError) {
     return {
       kind: "network",
@@ -93,13 +114,19 @@ async function postChatCompletions({ endpoint, apiKey, model, messages, maxToken
 
   if (!res.ok) {
     let detail = "";
+    let gatewayType = "";
     try {
       const text = await res.text();
       detail = text.slice(0, 300);
+      try {
+        gatewayType = JSON.parse(text)?.error?.type || "";
+      } catch {
+        // non-JSON error body — fall back to status-based classification
+      }
     } catch {
       // ignore body read failures
     }
-    const classified = classifyHttpError(res.status, detail);
+    const classified = classifyHttpError(res.status, detail, gatewayType);
     return { ok: false, ...classified };
   }
 

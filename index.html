@@ -34,22 +34,13 @@
           <h2 class="mb-4 text-lg font-semibold">AI Config</h2>
           <form id="ai-config-form" class="max-w-md space-y-4" autocomplete="off">
             <div>
-              <label for="cfg-agent" class="mb-1 block text-sm font-medium">Agent name</label>
-              <input
-                id="cfg-agent"
-                type="text"
-                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="e.g. Outreach Agent"
-              />
-            </div>
-            <div>
               <label for="cfg-key" class="mb-1 block text-sm font-medium">API key</label>
               <input
                 id="cfg-key"
                 type="password"
                 autocomplete="new-password"
                 class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="OpenCode Go API key"
+                placeholder="Bynara API key (sk-nry-…)"
               />
             </div>
             <div>
@@ -58,7 +49,7 @@
                 id="cfg-model"
                 type="text"
                 class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
-                placeholder="e.g. opencode/gpt-5 (see OpenCode Go docs)"
+                placeholder="e.g. deepseek-v4-flash (see Bynara docs)"
               />
             </div>
             <div>
@@ -69,7 +60,7 @@
                 inputmode="url"
                 class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
               />
-              <p class="mt-1 text-xs text-slate-500">OpenCode Go base URL (default <code>https://opencode.ai/zen/go/v1</code>). In dev, use <code>/go-api</code> to go through the Vite proxy and avoid CORS blocks. Do not use <code>localhost:4096</code> — that is the local agent server, not the Go API.</p>
+              <p class="mt-1 text-xs text-slate-500">Bynara router base URL (default <code>https://router.bynara.id/v1</code>). In dev, use <code>/bynara-api</code> to go through the Vite proxy and avoid CORS blocks.</p>
             </div>
             <div class="flex items-center gap-3">
               <button

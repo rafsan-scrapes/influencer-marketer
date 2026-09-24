@@ -19,7 +19,7 @@ const TEMPLATES = {
   conditions: []
 };
 
-const CONFIG = { agentName: "Agent", apiKey: "k", model: "m", endpoint: "http://srv" };
+const CONFIG = { apiKey: "k", model: "m", endpoint: "http://srv" };
 
 function mockFetchOk(calls) {
   globalThis.fetch = async (url, opts) => {

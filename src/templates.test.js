@@ -88,22 +88,21 @@ describe("evaluateConditions", () => {
 
 describe("buildPromptPayload", () => {
   it("returns substituted system + userContent, no raw tokens", () => {
-    const { system, userContent } = buildPromptPayload(CONDITION_BLOCKS[1], ROWS[0], "Agent");
-    expect(system).toContain("Agent");
+    const { system, userContent } = buildPromptPayload(CONDITION_BLOCKS[1], ROWS[0]);
+    expect(system).toContain("outreach emails");
     expect(userContent).toContain("AI idea for Clay");
     expect(userContent).toContain("step 1.");
     expect(userContent).not.toMatch(/\[[^\]]+\]/);
   });
   it("throws when a used placeholder cell is empty", () => {
-    expect(() => buildPromptPayload(DEFAULT_BLOCK, ROWS[1], "Agent")).toThrow(
+    expect(() => buildPromptPayload(DEFAULT_BLOCK, ROWS[1])).toThrow(
       "[Email Sequence] is empty in CSV for this row"
     );
   });
   it("omits the instruction section when prompt is empty", () => {
     const { userContent } = buildPromptPayload(
       { subject: "Hi [Name]", body: "Yo [Name]", prompt: "" },
-      ROWS[0],
-      ""
+      ROWS[0]
     );
     expect(userContent).not.toContain("Instruction:");
     expect(userContent).toContain("Hi Clay");

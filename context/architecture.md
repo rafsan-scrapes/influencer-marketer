@@ -12,8 +12,8 @@ Vite + vanilla JS + Tailwind CSS (v3). No framework. Static site; `npm run build
 | `src/main.js` | Tab navigation (`showTab`); wires per-tab modules as they land | No `fetch` to AI, no `[Column]` substitution |
 | `src/style.css` | Tailwind directives only | — |
 | `src/store.js` (Unit 2) | localStorage wrapper: versioned keys, safe JSON, typed getters/setters | No DOM, no fetch |
-| `src/api.js` (Unit 3) | Sole module allowed to call `fetch` for the AI (`/chat/completions`) | No DOM, no placeholder substitution |
-| `src/aiConfig.js` (Unit 3) | AI Config tab DOM only; restores/persists form via store, Test Connection via api | No `fetch` directly, no placeholder logic |
+| `src/api.js` (Unit 3) | Sole module allowed to call `fetch` for the AI (Bynara router `/v1/chat/completions`, OpenAI-compatible; maps `{ error: { type } }` envelope) | No DOM, no placeholder substitution |
+| `src/aiConfig.js` (Unit 3) | AI Config tab DOM only (API key, model alias, endpoint); restores/persists form via store, Test Connection via api | No `fetch` directly, no placeholder logic |
 | `src/csv.js` (Unit 4) | CSV parsing via PapaParse (`parseCsv`/`parseCsvText`, header/row normalization) | No AI calls |
 | `src/brands.js` (Unit 4) | Brands tab DOM (upload, table, status) + Email Template header chips; reads/writes `brands` | No AI calls, no placeholder substitution |
 | `src/templateEditor.js` (Unit 6) | Email Template tab DOM (chips, default block, condition blocks); state in `templates`, headers via `brands` + `im:headers-changed` | No `fetch`, no placeholder substitution |
@@ -25,7 +25,7 @@ Vite + vanilla JS + Tailwind CSS (v3). No framework. Static site; `npm run build
 ## localStorage Invariants
 
 - Keys: `im_config.v1`, `im_templates.v1`, `im_runs.v1`, `im_brands.v1` (version suffix; bump `STORE_VERSION` to migrate). Versioned; safe JSON parse/stringify (corrupt data → default, never throw to UI).
-- `im_config`: `{ agentName, apiKey, model, endpoint }` — populated only via AI Config tab.
+- `im_config`: `{ apiKey, model, endpoint }` — populated only via AI Config tab. Default endpoint `https://router.bynara.id/v1` (Bynara router); dev proxy path `/bynara-api` supported.
 - `im_templates`: `{ default: { subject, body, prompt }, conditions: ConditionBlock[] }`.
 - `im_runs`: `RunEntry[]` — appended per successful row, newest-first at render; cleared only via Clear All Runs. New CSV upload must not clear runs.
 - `im_brands`: `{ fileName, headers, rows }` — replaced wholesale on each CSV upload; restored on load so the table and chips survive reload.

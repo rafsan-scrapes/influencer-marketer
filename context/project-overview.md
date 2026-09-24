@@ -2,7 +2,7 @@
 
 ## Overview
 
-Influencer Marketer is a browser-based outreach tool for running personalised email campaigns to brands. The user uploads a CSV of brands, configures email templates with `[Column Name]` placeholders and optional if-conditions, selects which rows to run, and an AI model (via OpenCode Go) fills the templates using each row's values. The output — a copy-pasteable Subject and Body per row — is saved to a Runs tab. Phase 1 generates emails only; it does not send them.
+Influencer Marketer is a browser-based outreach tool for running personalised email campaigns to brands. The user uploads a CSV of brands, configures email templates with `[Column Name]` placeholders and optional if-conditions, selects which rows to run, and an AI model (via the Bynara router, OpenAI-compatible) fills the templates using each row's values. The output — a copy-pasteable Subject and Body per row — is saved to a Runs tab. Phase 1 generates emails only; it does not send them.
 
 ## Goals
 
@@ -13,7 +13,7 @@ Influencer Marketer is a browser-based outreach tool for running personalised em
 
 ## Core User Flow
 
-1. Open the **AI Config** tab → enter agent name, OpenCode Go API key, and model name → press **Test Connection**.
+1. Open the **AI Config** tab → enter Bynara API key (`sk-nry-…`) and model alias (e.g. `deepseek-v4-flash`) → press **Test Connection**.
 2. Open the **Email Template** tab → fill in the default Subject, Body, and Prompt boxes → optionally add one or more if-conditions, each with its own Subject, Body, and Prompt boxes.
 3. Upload a CSV on the **Brands** tab → the app reads all headers and shows rows in a table.
 4. Select rows via checkboxes (or Select All) → press **Run**.
@@ -25,10 +25,9 @@ Influencer Marketer is a browser-based outreach tool for running personalised em
 
 ### AI Config Tab
 
-- **Agent name**: stored in localStorage; available as a value the user can reference in templates if desired.
-- **API key**: password field, stored in localStorage, never logged or displayed in plain text.
-- **Model**: free-text field (no dropdown); user types the model name per OpenCode Go docs.
-- **Endpoint**: override field for the OpenCode Go base URL; defaults to the documented value.
+- **API key**: password field, stored in localStorage, never logged or displayed in plain text. Bynara keys start with `sk-nry-`.
+- **Model**: free-text field (no dropdown); user types the model alias per Bynara docs (e.g. `deepseek-v4-flash`, or `combo/<name>` for fallback combos).
+- **Endpoint**: override field for the Bynara router base URL; defaults to `https://router.bynara.id/v1`. In dev, `/bynara-api` routes through the Vite proxy to avoid CORS blocks.
 - **Test Connection**: fires a cheap request to verify the key, model, and endpoint; surfaces auth, CORS, and network errors specifically.
 - All config persists in localStorage.
 
@@ -61,7 +60,7 @@ Each condition block contains:
 
 **Prompt construction sent to the AI**
 The app substitutes all placeholders in the selected Subject, Body, and Prompt first, then sends:
-- System context (agent name, brevity/accuracy rules).
+- System context (fixed outreach-assistant role, brevity/accuracy rules).
 - The substituted Subject template and Body template as the content to complete.
 - The substituted Prompt as the specific instruction for what the AI must generate or fill in.
 
@@ -96,7 +95,7 @@ The AI's job is narrow: fill only the spans or fields the Prompt instructs. The 
 
 ### In Scope
 
-- AI Config tab: OpenCode Go integration via browser `fetch` (OpenAI-compatible `/chat/completions`).
+- AI Config tab: Bynara router integration via browser `fetch` (OpenAI-compatible `/v1/chat/completions`; Bearer `sk-nry-…` key).
 - Email Template tab: default block, if-condition blocks, column chips, condition evaluation.
 - Brands tab: CSV upload, row table, checkbox selection, sequential run, per-row status and errors.
 - Runs tab: per-row output entries, copy buttons, clear all.
