@@ -124,7 +124,8 @@ Reload the app after: config saved, template with 2 condition blocks saved, a CS
 | Sequential (non-concurrent) AI calls | Avoids rate-limit complexity; acceptable for a single-user tool. |
 | One Runs entry per row | Each brand is an independent unit of work; per-row entries are easier to copy from than batches. |
 | Runs persist until manually cleared | User may need results across sessions; explicit Clear All gives control. |
-| Phase 1.1: minimal Node proxy if CORS blocks | UI unchanged; `src/api.js` interface swaps the fetch target only. |
+| Phase 1.1: Vite dev proxy `/go-api` → Zen (no extra server) | Same-origin proxy avoids CORS in dev; production calls Zen directly. |
+| Default endpoint `https://opencode.ai/zen/go/v1`, legacy `http://localhost:4096` auto-migrated | Localhost is the agent server, not the Go chat API; old saved values migrate on load. |
 
 ## Session Notes
 

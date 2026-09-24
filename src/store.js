@@ -5,7 +5,12 @@
 
 export const STORE_VERSION = 1;
 
-export const DEFAULT_ENDPOINT = "http://localhost:4096";
+export const DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1";
+
+// Pre-Phase-1.1 default pointed at a local OpenCode server, which does not
+// serve the OpenAI-compatible `/chat/completions` path. Migrate persisted
+// values so existing users are not stuck on the dead default.
+export const LEGACY_DEFAULT_ENDPOINTS = ["http://localhost:4096"];
 
 const DOMAINS = ["config", "templates", "runs", "brands"];
 
@@ -77,14 +82,15 @@ function coerce(domain, value) {
   }
   if (!isPlainObject(value)) return fallback;
   if (domain === "config") {
+    let endpoint = typeof value.endpoint === "string" ? value.endpoint : "";
+    if (endpoint.length === 0 || LEGACY_DEFAULT_ENDPOINTS.includes(endpoint.trim().replace(/\/+$/, ""))) {
+      endpoint = DEFAULT_ENDPOINT;
+    }
     return {
       agentName: typeof value.agentName === "string" ? value.agentName : "",
       apiKey: typeof value.apiKey === "string" ? value.apiKey : "",
       model: typeof value.model === "string" ? value.model : "",
-      endpoint:
-        typeof value.endpoint === "string" && value.endpoint.length > 0
-          ? value.endpoint
-          : DEFAULT_ENDPOINT
+      endpoint
     };
   }
   if (domain === "brands") {

@@ -6,6 +6,16 @@ export const CHAT_COMPLETIONS_PATH = "/chat/completions";
 
 export function resolveChatUrl(endpoint) {
   const base = (endpoint || "").trim().replace(/\/+$/, "");
+  // Relative endpoint (e.g. `/go-api` via the Vite dev proxy) resolves
+  // against the current origin; absolute URLs pass through untouched.
+  if (base.startsWith("/")) {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      const origin = window.location.origin.replace(/\/+$/, "");
+      if (base.endsWith(CHAT_COMPLETIONS_PATH)) return origin + base;
+      return origin + base + CHAT_COMPLETIONS_PATH;
+    }
+    return base.endsWith(CHAT_COMPLETIONS_PATH) ? base : base + CHAT_COMPLETIONS_PATH;
+  }
   if (base.endsWith(CHAT_COMPLETIONS_PATH)) return base;
   return base + CHAT_COMPLETIONS_PATH;
 }
@@ -35,17 +45,21 @@ function classifyHttpError(status, detail) {
   };
 }
 
-function classifyNetworkError(err) {
+function classifyNetworkError(err, url) {
   // Browsers report CORS blocks, DNS failures, refused connections, and
   // offline state all as a generic TypeError — they are indistinguishable
   // from fetch. Say so explicitly rather than guessing.
+  const hint =
+    url && (url.includes("localhost") || url.includes("127.0.0.1"))
+      ? " That address is a local OpenCode server, which does not serve `/chat/completions`. For OpenCode Go use `https://opencode.ai/zen/go/v1` (or `/go-api` in dev via the Vite proxy)."
+      : " If the URL is correct, the server likely blocked the browser (CORS). In dev, set Endpoint to `/go-api` so Vite proxies the request.";
   if (err instanceof TypeError) {
     return {
       kind: "network",
       message:
-        "Network error: the request never reached the server. " +
-        "This is usually a CORS block (browser refused the cross-origin response), " +
-        "a wrong endpoint URL, or no internet connection."
+        "Network error: the request never reached the server (" + (url || "unknown URL") + ")." +
+        " This is usually a CORS block (browser refused the cross-origin response)," +
+        " a wrong endpoint URL, or no internet connection." + hint
     };
   }
   return { kind: "network", message: "Network error: " + (err && err.message ? err.message : String(err)) };
@@ -73,7 +87,7 @@ async function postChatCompletions({ endpoint, apiKey, model, messages, maxToken
       })
     });
   } catch (err) {
-    const classified = classifyNetworkError(err);
+    const classified = classifyNetworkError(err, resolveChatUrl(endpoint));
     return { ok: false, ...classified };
   }
 
