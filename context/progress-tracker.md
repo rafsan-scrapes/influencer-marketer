@@ -4,11 +4,11 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-Unit 3
+Unit 4
 
 ## Current Goal
 
-Unit 3 — AI Config Tab.
+Unit 4 — CSV Upload and Brands Table.
 
 ## Completed
 
@@ -16,6 +16,7 @@ Unit 3 — AI Config Tab.
 - Workflow rules finalised in `ai-workflow-rules.md`.
 - Unit 1 — Scaffold done: Vite + vanilla JS + Tailwind v3 shell (`index.html`, `src/main.js` with `showTab`, `src/style.css`); four working tabs + disabled Influencers button; `context/architecture.md` created. Verify passed: tab wiring confirmed via source check (4 buttons toggle 4 panels, Influencers excluded/disabled); `npm run build` exits 0 and produces `dist/`.
 - Unit 2 — Store done: `src/store.js` (versioned keys `im_<domain>.v1`, safe JSON, generic `get`/`set` + typed `getConfig`/`setConfig`, `getTemplates`/`setTemplates`, `getRuns`/`setRuns`/`addRun`/`clearRuns`); exposed as `window.store` in `src/main.js` for console use. Verify passed: node test with localStorage stub (roundtrip, reload persistence, corrupt/wrong-type JSON → default, unknown domain throws, addRun/clearRuns); `npm run build` exits 0.
+- Unit 3 — AI Config done: `src/api.js` (only fetcher; `testConnection` + `sendMessage` against `/chat/completions`, errors classified as auth / not-found / rate-limit / http / network-with-CORS-note / config) and `src/aiConfig.js` (form restore on load, persist on input/change, Test Connection with busy/success/error status). Verify passed: 15 node assertions with stubbed fetch (URL resolution, bearer header, body shape, all error kinds, missing-key/model short-circuit); `npm run build` exits 0. Live key/model check and reload-restore still need a manual browser pass.
 
 ## In Progress
 

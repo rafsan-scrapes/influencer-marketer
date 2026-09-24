@@ -13,6 +13,7 @@ Vite + vanilla JS + Tailwind CSS (v3). No framework. Static site; `npm run build
 | `src/style.css` | Tailwind directives only | — |
 | `src/store.js` (Unit 2) | localStorage wrapper: versioned keys, safe JSON, typed getters/setters | No DOM, no fetch |
 | `src/api.js` (Unit 3) | Sole module allowed to call `fetch` for the AI (`/chat/completions`) | No DOM, no placeholder substitution |
+| `src/aiConfig.js` (Unit 3) | AI Config tab DOM only; restores/persists form via store, Test Connection via api | No `fetch` directly, no placeholder logic |
 | `src/csv.js` (Unit 4) | CSV parsing via PapaParse | No AI calls |
 | `src/templates.js` (Unit 5) | Sole module for placeholder resolution: `extractPlaceholders`, `substitutePlaceholders`, `evaluateConditions`, `buildPromptPayload` | No `fetch`, no DOM |
 | `src/test/sample.csv` | 2–3 row fixture trimmed from `reachingoutsofar.csv` (original untouched) | Never edited once created |

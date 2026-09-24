@@ -31,8 +31,57 @@
 
       <main>
         <section id="panel-ai-config" role="tabpanel" class="tab-panel rounded bg-white p-6 shadow">
-          <h2 class="mb-2 text-lg font-semibold">AI Config</h2>
-          <p class="text-sm text-slate-600">Agent, API key, model, and endpoint settings go here (Unit 3).</p>
+          <h2 class="mb-4 text-lg font-semibold">AI Config</h2>
+          <form id="ai-config-form" class="max-w-md space-y-4" autocomplete="off">
+            <div>
+              <label for="cfg-agent" class="mb-1 block text-sm font-medium">Agent name</label>
+              <input
+                id="cfg-agent"
+                type="text"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="e.g. Outreach Agent"
+              />
+            </div>
+            <div>
+              <label for="cfg-key" class="mb-1 block text-sm font-medium">API key</label>
+              <input
+                id="cfg-key"
+                type="password"
+                autocomplete="new-password"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="OpenCode Go API key"
+              />
+            </div>
+            <div>
+              <label for="cfg-model" class="mb-1 block text-sm font-medium">Model</label>
+              <input
+                id="cfg-model"
+                type="text"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="e.g. opencode/gpt-5 (see OpenCode Go docs)"
+              />
+            </div>
+            <div>
+              <label for="cfg-endpoint" class="mb-1 block text-sm font-medium">Endpoint</label>
+              <input
+                id="cfg-endpoint"
+                type="text"
+                inputmode="url"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              />
+              <p class="mt-1 text-xs text-slate-500">Base URL of the OpenCode Go server. Leave the default unless yours differs.</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <button
+                id="cfg-test"
+                type="button"
+                class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              >
+                Test Connection
+              </button>
+              <span id="cfg-status" role="status" class="text-sm text-slate-600"></span>
+            </div>
+          </form>
         </section>
         <section id="panel-email-template" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
           <h2 class="mb-2 text-lg font-semibold">Email Template</h2>
