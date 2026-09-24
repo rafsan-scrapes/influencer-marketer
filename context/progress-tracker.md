@@ -4,11 +4,11 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-Unit 6
+Unit 7
 
 ## Current Goal
 
-Unit 6 — Email Template Tab UI.
+Unit 7 — Row Selection and Sequential Run.
 
 ## Completed
 
@@ -19,10 +19,9 @@ Unit 6 — Email Template Tab UI.
 - Unit 3 — AI Config done: `src/api.js` (only fetcher; `testConnection` + `sendMessage` against `/chat/completions`, errors classified as auth / not-found / rate-limit / http / network-with-CORS-note / config) and `src/aiConfig.js` (form restore on load, persist on input/change, Test Connection with busy/success/error status). Verify passed: 15 node assertions with stubbed fetch (URL resolution, bearer header, body shape, all error kinds, missing-key/model short-circuit); `npm run build` exits 0. Live key/model check and reload-restore still need a manual browser pass.
 - Unit 4 — CSV Upload and Brands Table done: `src/csv.js` (PapaParse, `parseCsv`/`parseCsvText`, BOM/whitespace header normalization, empty cells → `""`), `src/brands.js` (upload → table with all rows/columns, header chips on Email Template tab, status line; state persisted in new `brands` store domain `im_brands.v1`, upload replaces table without touching runs), `src/test/sample.csv` (header + 3 rows from `reachingoutsofar.csv`, original untouched). Verify passed: 18 node assertions (fixture parses to 19 headers/3 rows, quoted commas intact, empty cells `""`, table has header + 3 rows with all 19 columns, HTML escaped, 19 chips, headerless CSV rejected); `npm run build` exits 0. Manual browser pass still needed: upload 3-row CSV → table correct; upload different CSV → replaced; runs count unchanged.
 - Unit 5 — Template Engine done: `src/templates.js` (`extractPlaceholders` unique-in-order, `substitutePlaceholders` case-insensitive with `"[Name] is empty in CSV for this row"` throw, `evaluateConditions` first-AND-match else default, `buildPromptPayload` → `{ system, userContent }` fully substituted) plus `src/templates.test.js` (12 Vitest tests on a hardcoded 2-row sample, `npm test`). Judgment calls: condition equals/contains compare case-insensitively on trimmed values; `isEmpty` = trimmed empty; `evaluateConditions` takes an optional third `defaultBlock` param (null when omitted). Verify passed: `npm test` 12/12; `npm run build` exits 0.
+- Unit 6 — Email Template Tab UI done: `src/templateEditor.js` (clickable chips inserting `[Column]` at cursor in the focused Subject/Body/Prompt box; default Subject/Body/Prompt; condition blocks with add/delete/up/down, multi-row AND conditions with column select-or-text, op dropdown, value input auto-disabled for `isEmpty`; all state persisted to `templates` on every input/change, restored on load; chips/columns refresh on `im:headers-changed` dispatched by `brands.js`). Judgment calls: condition column is a header `<select>` when a CSV is loaded, free-text input otherwise; one condition row minimum per block. Verify passed: `npm test` 20/20 (8 new jsdom tests: typing persists + reload restores, block add/fill/reload, delete, reorder, AND rows, chip-at-cursor insertion, headers event); `npm run build` exits 0. Manual browser pass still needed: chip click inserts at cursor; reload restores blocks.
 
 ## In Progress
-
-Unit 4
 
 ## Next Up
 

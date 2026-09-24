@@ -16,6 +16,7 @@ Vite + vanilla JS + Tailwind CSS (v3). No framework. Static site; `npm run build
 | `src/aiConfig.js` (Unit 3) | AI Config tab DOM only; restores/persists form via store, Test Connection via api | No `fetch` directly, no placeholder logic |
 | `src/csv.js` (Unit 4) | CSV parsing via PapaParse (`parseCsv`/`parseCsvText`, header/row normalization) | No AI calls |
 | `src/brands.js` (Unit 4) | Brands tab DOM (upload, table, status) + Email Template header chips; reads/writes `brands` | No AI calls, no placeholder substitution |
+| `src/templateEditor.js` (Unit 6) | Email Template tab DOM (chips, default block, condition blocks); state in `templates`, headers via `brands` + `im:headers-changed` | No `fetch`, no placeholder substitution |
 | `src/templates.js` (Unit 5) | Sole module for placeholder resolution: `extractPlaceholders`, `substitutePlaceholders`, `evaluateConditions`, `buildPromptPayload` | No `fetch`, no DOM |
 | `src/test/sample.csv` | 2–3 row fixture trimmed from `reachingoutsofar.csv` (original untouched) | Never edited once created |
 

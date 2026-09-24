@@ -61,6 +61,7 @@ function paint() {
   }
   if (table) table.innerHTML = renderBrandsTable(headers, rows);
   if (chips) chips.innerHTML = renderHeaderChips(headers);
+  window.dispatchEvent(new CustomEvent("im:headers-changed", { detail: { headers } }));
 }
 
 export function initBrands() {

@@ -88,7 +88,18 @@
           <div id="template-chips" class="mb-4 flex flex-wrap gap-2">
             <p class="text-sm text-slate-500">Upload a CSV on the Brands tab to see column chips.</p>
           </div>
-          <p class="text-sm text-slate-600">Default block, condition blocks, and column chips go here (Unit 6).</p>
+          <div class="mb-4 rounded border border-slate-300 p-4">
+            <h3 class="mb-2 text-sm font-semibold">Default</h3>
+            <div class="space-y-2">
+              <input id="tpl-def-subject" type="text" placeholder="Subject" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm" />
+              <textarea id="tpl-def-body" placeholder="Body" rows="4" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm"></textarea>
+              <textarea id="tpl-def-prompt" placeholder="Prompt (optional)" rows="2" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm"></textarea>
+            </div>
+          </div>
+          <div id="template-conditions" class="space-y-4"></div>
+          <button id="template-add-condition" type="button" class="mt-4 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
+            Add condition
+          </button>
         </section>
         <section id="panel-brands" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
           <h2 class="mb-4 text-lg font-semibold">Brands</h2>
