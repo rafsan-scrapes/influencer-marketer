@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Influencer Marketer</title>
+  </head>
+  <body class="bg-slate-100 text-slate-900">
+    <div id="app" class="mx-auto max-w-5xl p-6">
+      <header class="mb-6">
+        <h1 class="text-2xl font-bold">Influencer Marketer</h1>
+        <p class="text-sm text-slate-600">Phase 1 — Brand outreach generator</p>
+      </header>
+
+      <nav class="mb-4 flex gap-2" role="tablist" aria-label="Main tabs">
+        <button data-tab="ai-config" role="tab" class="tab-btn rounded px-4 py-2 font-medium">AI Config</button>
+        <button data-tab="email-template" role="tab" class="tab-btn rounded px-4 py-2 font-medium">Email Template</button>
+        <button data-tab="brands" role="tab" class="tab-btn rounded px-4 py-2 font-medium">Brands</button>
+        <button data-tab="runs" role="tab" class="tab-btn rounded px-4 py-2 font-medium">Runs</button>
+        <button
+          data-tab="influencers"
+          role="tab"
+          disabled
+          aria-disabled="true"
+          title="Phase 2 — coming soon"
+          class="cursor-not-allowed rounded bg-slate-200 px-4 py-2 font-medium text-slate-400"
+        >
+          Influencers
+        </button>
+      </nav>
+
+      <main>
+        <section id="panel-ai-config" role="tabpanel" class="tab-panel rounded bg-white p-6 shadow">
+          <h2 class="mb-2 text-lg font-semibold">AI Config</h2>
+          <p class="text-sm text-slate-600">Agent, API key, model, and endpoint settings go here (Unit 3).</p>
+        </section>
+        <section id="panel-email-template" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
+          <h2 class="mb-2 text-lg font-semibold">Email Template</h2>
+          <p class="text-sm text-slate-600">Default block, condition blocks, and column chips go here (Unit 6).</p>
+        </section>
+        <section id="panel-brands" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
+          <h2 class="mb-2 text-lg font-semibold">Brands</h2>
+          <p class="text-sm text-slate-600">CSV upload and rows table go here (Unit 4).</p>
+        </section>
+        <section id="panel-runs" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
+          <h2 class="mb-2 text-lg font-semibold">Runs</h2>
+          <p class="text-sm text-slate-600">Generated email entries go here (Unit 8).</p>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
