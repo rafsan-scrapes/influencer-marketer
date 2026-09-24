@@ -4,11 +4,11 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-Unit 7
+Unit 8
 
 ## Current Goal
 
-Unit 7 — Row Selection and Sequential Run.
+Unit 8 — Runs Tab.
 
 ## Completed
 
@@ -20,6 +20,7 @@ Unit 7 — Row Selection and Sequential Run.
 - Unit 4 — CSV Upload and Brands Table done: `src/csv.js` (PapaParse, `parseCsv`/`parseCsvText`, BOM/whitespace header normalization, empty cells → `""`), `src/brands.js` (upload → table with all rows/columns, header chips on Email Template tab, status line; state persisted in new `brands` store domain `im_brands.v1`, upload replaces table without touching runs), `src/test/sample.csv` (header + 3 rows from `reachingoutsofar.csv`, original untouched). Verify passed: 18 node assertions (fixture parses to 19 headers/3 rows, quoted commas intact, empty cells `""`, table has header + 3 rows with all 19 columns, HTML escaped, 19 chips, headerless CSV rejected); `npm run build` exits 0. Manual browser pass still needed: upload 3-row CSV → table correct; upload different CSV → replaced; runs count unchanged.
 - Unit 5 — Template Engine done: `src/templates.js` (`extractPlaceholders` unique-in-order, `substitutePlaceholders` case-insensitive with `"[Name] is empty in CSV for this row"` throw, `evaluateConditions` first-AND-match else default, `buildPromptPayload` → `{ system, userContent }` fully substituted) plus `src/templates.test.js` (12 Vitest tests on a hardcoded 2-row sample, `npm test`). Judgment calls: condition equals/contains compare case-insensitively on trimmed values; `isEmpty` = trimmed empty; `evaluateConditions` takes an optional third `defaultBlock` param (null when omitted). Verify passed: `npm test` 12/12; `npm run build` exits 0.
 - Unit 6 — Email Template Tab UI done: `src/templateEditor.js` (clickable chips inserting `[Column]` at cursor in the focused Subject/Body/Prompt box; default Subject/Body/Prompt; condition blocks with add/delete/up/down, multi-row AND conditions with column select-or-text, op dropdown, value input auto-disabled for `isEmpty`; all state persisted to `templates` on every input/change, restored on load; chips/columns refresh on `im:headers-changed` dispatched by `brands.js`). Judgment calls: condition column is a header `<select>` when a CSV is loaded, free-text input otherwise; one condition row minimum per block. Verify passed: `npm test` 20/20 (8 new jsdom tests: typing persists + reload restores, block add/fill/reload, delete, reorder, AND rows, chip-at-cursor insertion, headers event); `npm run build` exits 0. Manual browser pass still needed: chip click inserts at cursor; reload restores blocks.
+- Unit 7 — Row Selection and Sequential Run done: `src/runner.js` (`runRows` iterates selected indices with `await`, per-row evaluate → substitute (throw → error with column name) → skip when Subject+Body both blank → `buildPromptPayload` → `sendMessage`; `brandNameFor`/`emailSequenceFor` helpers; results returned in-memory, NOT persisted — that is Unit 8) and Brands UI in `src/brands.js` (checkbox column, Select All/Deselect All, Run button, live idle/generating/done/error/skipped pills with inline messages, buttons disabled mid-run, selection defaults to all rows, statuses reset per run). Judgment calls: whitespace-only Subject+Body counts as empty (skip); `im:headers-changed` now fires only when headers actually change (paint runs per status update). Verify passed: `npm test` 30/30 (10 new: done/error/done sequence with exact status transitions, skip without fetch, auth failure → error, result shape, column helpers, checkbox/status rendering, escaping); `npm run build` exits 0. Manual browser pass still needed: 3-row run with row-2 empty cell shows live statuses.
 
 ## In Progress
 
