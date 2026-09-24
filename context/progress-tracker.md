@@ -4,17 +4,18 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-Phase 1 (Brand outreach generator): Unit 1 done, Unit 2 next.
+Unit 3
 
 ## Current Goal
 
-Unit 2 — Store.
+Unit 3 — AI Config Tab.
 
 ## Completed
 
 - Product scope, UI layout, template/condition model, placeholder system, and run output model finalised in `project-overview.md`.
 - Workflow rules finalised in `ai-workflow-rules.md`.
 - Unit 1 — Scaffold done: Vite + vanilla JS + Tailwind v3 shell (`index.html`, `src/main.js` with `showTab`, `src/style.css`); four working tabs + disabled Influencers button; `context/architecture.md` created. Verify passed: tab wiring confirmed via source check (4 buttons toggle 4 panels, Influencers excluded/disabled); `npm run build` exits 0 and produces `dist/`.
+- Unit 2 — Store done: `src/store.js` (versioned keys `im_<domain>.v1`, safe JSON, generic `get`/`set` + typed `getConfig`/`setConfig`, `getTemplates`/`setTemplates`, `getRuns`/`setRuns`/`addRun`/`clearRuns`); exposed as `window.store` in `src/main.js` for console use. Verify passed: node test with localStorage stub (roundtrip, reload persistence, corrupt/wrong-type JSON → default, unknown domain throws, addRun/clearRuns); `npm run build` exits 0.
 
 ## In Progress
 

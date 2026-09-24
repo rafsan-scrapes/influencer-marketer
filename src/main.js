@@ -1,4 +1,8 @@
 import "./style.css";
+import { store } from "./store.js";
+
+// Exposed for browser-console verification (Unit 2 verify step).
+window.store = store;
 
 const ACTIVE = ["bg-slate-900", "text-white"];
 const INACTIVE = ["bg-white", "text-slate-700", "hover:bg-slate-200"];

@@ -19,7 +19,7 @@ Vite + vanilla JS + Tailwind CSS (v3). No framework. Static site; `npm run build
 
 ## localStorage Invariants
 
-- Keys: `im_config`, `im_templates`, `im_runs`. Versioned; safe JSON parse/stringify (corrupt data → default, never throw to UI).
+- Keys: `im_config.v1`, `im_templates.v1`, `im_runs.v1` (version suffix; bump `STORE_VERSION` to migrate). Versioned; safe JSON parse/stringify (corrupt data → default, never throw to UI).
 - `im_config`: `{ agentName, apiKey, model, endpoint }` — populated only via AI Config tab.
 - `im_templates`: `{ default: { subject, body, prompt }, conditions: ConditionBlock[] }`.
 - `im_runs`: `RunEntry[]` — appended per successful row, newest-first at render; cleared only via Clear All Runs. New CSV upload must not clear runs.
