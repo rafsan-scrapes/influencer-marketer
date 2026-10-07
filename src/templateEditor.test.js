@@ -11,6 +11,7 @@ const PANEL = `
   <input id="tpl-def-subject" type="text" class="tpl-target" />
   <textarea id="tpl-def-body" class="tpl-target"></textarea>
   <textarea id="tpl-def-prompt" class="tpl-target"></textarea>
+  <input id="tpl-def-split" type="checkbox" />
   <div id="template-conditions"></div>
   <button id="template-add-condition" type="button">Add condition</button>
 </section>`;
@@ -88,6 +89,33 @@ describe("condition blocks", () => {
     document.querySelector('[data-action="add-row"]').click();
     expect(document.querySelectorAll("[data-cond-row]")).toHaveLength(2);
     expect(document.body.textContent).toContain("AND");
+  });
+});
+
+describe("subject split toggle", () => {
+  it("default checkbox persists and reload restores", () => {
+    const box = document.getElementById("tpl-def-split");
+    box.checked = true;
+    fire(box, "change");
+    expect(store.getTemplates().default.subjectFromFirstLine).toBe(true);
+    document.body.innerHTML = PANEL;
+    initTemplateEditor();
+    expect(document.getElementById("tpl-def-split").checked).toBe(true);
+  });
+
+  it("condition block checkbox persists and reload restores", () => {
+    document.getElementById("template-add-condition").click();
+    const block = document.querySelector("[data-block-id]");
+    const box = block.querySelector('[data-field="subjectFromFirstLine"]');
+    expect(box).not.toBe(null);
+    box.checked = true;
+    fire(box, "change");
+    const id = block.getAttribute("data-block-id");
+    expect(store.getTemplates().conditions[0].subjectFromFirstLine).toBe(true);
+    document.body.innerHTML = PANEL;
+    initTemplateEditor();
+    const restored = document.querySelector(`[data-block-id="${id}"]`);
+    expect(restored.querySelector('[data-field="subjectFromFirstLine"]').checked).toBe(true);
   });
 });
 

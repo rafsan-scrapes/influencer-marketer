@@ -15,7 +15,7 @@ export const LEGACY_DEFAULT_ENDPOINTS = [
   "https://opencode.ai/zen/go/v1"
 ];
 
-const DOMAINS = ["config", "templates", "runs", "brands"];
+const DOMAINS = ["config", "templates", "runs", "brands", "lastRun"];
 
 function keyFor(domain) {
   return `im_${domain}.v${STORE_VERSION}`;
@@ -29,6 +29,8 @@ function defaultFor(domain) {
       return { default: { subject: "", body: "", prompt: "" }, conditions: [] };
     case "runs":
       return [];
+    case "lastRun":
+      return { at: 0, fileName: "", rowCount: 0, total: 0, done: 0, states: [] };
     case "brands":
       return { fileName: "", headers: [], rows: [] };
     default:
@@ -83,6 +85,23 @@ function coerce(domain, value) {
   if (domain === "runs") {
     return Array.isArray(value) ? value : fallback;
   }
+  if (domain === "lastRun") {
+    if (!isPlainObject(value)) return fallback;
+    return {
+      at: typeof value.at === "number" ? value.at : 0,
+      fileName: typeof value.fileName === "string" ? value.fileName : "",
+      rowCount: typeof value.rowCount === "number" ? value.rowCount : 0,
+      total: typeof value.total === "number" ? value.total : 0,
+      done: typeof value.done === "number" ? value.done : 0,
+      states: Array.isArray(value.states)
+        ? value.states.filter(isPlainObject).map((s) => ({
+            index: typeof s.index === "number" ? s.index : -1,
+            status: typeof s.status === "string" ? s.status : "idle",
+            message: typeof s.message === "string" ? s.message : ""
+          }))
+        : []
+    };
+  }
   if (!isPlainObject(value)) return fallback;
   if (domain === "config") {
     let endpoint = typeof value.endpoint === "string" ? value.endpoint : "";
@@ -104,13 +123,22 @@ function coerce(domain, value) {
   }
   // templates
   const def = isPlainObject(value.default) ? value.default : {};
+  const coerceBlock = (b) => {
+    const o = isPlainObject(b) ? b : {};
+    return {
+      subject: typeof o.subject === "string" ? o.subject : "",
+      body: typeof o.body === "string" ? o.body : "",
+      prompt: typeof o.prompt === "string" ? o.prompt : "",
+      subjectFromFirstLine: o.subjectFromFirstLine === true
+    };
+  };
   return {
-    default: {
-      subject: typeof def.subject === "string" ? def.subject : "",
-      body: typeof def.body === "string" ? def.body : "",
-      prompt: typeof def.prompt === "string" ? def.prompt : ""
-    },
-    conditions: Array.isArray(value.conditions) ? value.conditions : []
+    default: coerceBlock(def),
+    conditions: Array.isArray(value.conditions)
+      ? value.conditions
+          .filter(isPlainObject)
+          .map((b) => ({ ...coerceBlock(b), id: typeof b.id === "string" ? b.id : "", conditions: Array.isArray(b.conditions) ? b.conditions : [] }))
+      : []
   };
 }
 
@@ -163,14 +191,21 @@ export const store = {
   },
   setRuns(value) {
     return this.set("runs", value);
-  },
-  addRun(entry) {
+  },  addRun(entry) {
     const runs = this.getRuns();
     runs.push(entry);
     return this.setRuns(runs);
   },
   clearRuns() {
     return this.setRuns([]);
+  },
+
+  // Typed accessors — last run summary (per-row pills + Finished line)
+  getLastRun() {
+    return this.get("lastRun");
+  },
+  setLastRun(value) {
+    return this.set("lastRun", value);
   },
 
   // Typed accessors — brands (loaded CSV; replaced on each upload, never clears runs)

@@ -5,7 +5,7 @@
 // Run entries are NOT persisted here (Unit 8 owns the runs store);
 // per-row results are returned for the caller to save.
 
-import { evaluateConditions, substitutePlaceholders, buildPromptPayload } from "./templates.js";
+import { evaluateConditions, buildPromptPayload, splitFirstLine } from "./templates.js";
 import { sendMessage } from "./api.js";
 
 export const STATUSES = ["idle", "generating", "done", "error", "skipped"];
@@ -43,15 +43,13 @@ export async function runRows({ rows, indices, templates, config, onStatus }) {
     try {
       const block = evaluateConditions(templates.conditions, row, templates.default);
       // Throws "[Column] is empty in CSV for this row" on any empty cell.
-      const subject = substitutePlaceholders(block.subject || "", row);
-      const body = substitutePlaceholders(block.body || "", row);
-      substitutePlaceholders(block.prompt || "", row);
+      // [Subject]/[Body] inside the prompt resolve to the filled template.
+      const { system, userContent, subject, body } = buildPromptPayload(block, row);
       if (subject.trim() === "" && body.trim() === "") {
         notify(index, "skipped", "Subject and Body are both empty — no AI call made.");
         results.push({ index, status: "skipped", message: "Subject and Body are both empty." });
         continue;
       }
-      const { system, userContent } = buildPromptPayload(block, row);
       const res = await sendMessage({
         endpoint: config.endpoint,
         apiKey: config.apiKey,
@@ -65,14 +63,25 @@ export async function runRows({ rows, indices, templates, config, onStatus }) {
         continue;
       }
       notify(index, "done", "");
+      // Per-block opt-in: AI returns the final subject on the first line.
+      // Otherwise the template subject stands and the AI reply is the body
+      // (falling back to the substituted body when the model says nothing).
+      const content = res.content;
+      let finalSubject = subject;
+      let finalBody = content && content.trim() !== "" ? content : body;
+      if (block.subjectFromFirstLine && content && content.trim() !== "") {
+        const split = splitFirstLine(content);
+        if (split.subject !== "") finalSubject = split.subject;
+        finalBody = split.body !== "" ? split.body : body;
+      }
       results.push({
         index,
         status: "done",
         brandName: brandNameFor(row),
         emailSequence: emailSequenceFor(row),
-        subject,
-        body,
-        content: res.content
+        subject: finalSubject,
+        body: finalBody,
+        content
       });
     } catch (err) {
       const message = err && err.message ? err.message : String(err);

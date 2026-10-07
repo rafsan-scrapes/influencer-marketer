@@ -19,13 +19,15 @@ Vite + vanilla JS + Tailwind CSS (v3). No framework. Static site; `npm run build
 | `src/templateEditor.js` (Unit 6) | Email Template tab DOM (chips, default block, condition blocks); state in `templates`, headers via `brands` + `im:headers-changed` | No `fetch`, no placeholder substitution |
 | `src/runner.js` (Unit 7) | Sequential run pipeline (`runRows`, column helpers); statuses via callback, results returned in-memory | No DOM; persistence owned by Unit 8 |
 | `src/runs.js` (Unit 8) | Runs tab DOM (newest-first entries, copy+toast, clear all); `makeRunEntry`, `refreshRuns` called by brands.js after each run | No `fetch`, no placeholder logic |
-| `src/templates.js` (Unit 5) | Sole module for placeholder resolution: `extractPlaceholders`, `substitutePlaceholders`, `evaluateConditions`, `buildPromptPayload` | No `fetch`, no DOM |
+| `src/templates.js` (Unit 5) | Sole module for placeholder resolution: `extractPlaceholders`, `substitutePlaceholders(text, row, extras?)`, `evaluateConditions`, `buildPromptPayload` (resolves `[Subject]`/`[Body]` in prompt), `splitFirstLine` | No `fetch`, no DOM |
 | `src/test/sample.csv` | 2–3 row fixture trimmed from `reachingoutsofar.csv` (original untouched) | Never edited once created |
 
 ## localStorage Invariants
 
 - Keys: `im_config.v1`, `im_templates.v1`, `im_runs.v1`, `im_brands.v1` (version suffix; bump `STORE_VERSION` to migrate). Versioned; safe JSON parse/stringify (corrupt data → default, never throw to UI).
 - `im_config`: `{ apiKey, model, endpoint }` — populated only via AI Config tab. Default endpoint `https://router.bynara.id/v1` (Bynara router); dev proxy path `/bynara-api` supported.
+- `im_templates`: `{ default: Block, conditions: ConditionBlock[] }` — blocks carry `subjectFromFirstLine: boolean` (AI returns final subject on first line).
+- `im_lastRun.v1`: `{ at, fileName, rowCount, total, done, states: [{ index, status, message }] }` — restored on load when the same CSV is still loaded, so per-row pills + Finished line survive reload.
 - `im_templates`: `{ default: { subject, body, prompt }, conditions: ConditionBlock[] }`.
 - `im_runs`: `RunEntry[]` — appended per successful row, newest-first at render; cleared only via Clear All Runs. New CSV upload must not clear runs.
 - `im_brands`: `{ fileName, headers, rows }` — replaced wholesale on each CSV upload; restored on load so the table and chips survive reload.

@@ -129,12 +129,35 @@ function setRunUiEnabled(enabled) {
   }
 }
 
+// Restore the previous run's per-row pills + Finished line when the same CSV
+// (same file name + row count) is still loaded. Otherwise start clean.
+function restoreLastRun() {
+  let last;
+  try {
+    last = store.getLastRun();
+  } catch {
+    return;
+  }
+  if (!last || !Array.isArray(last.states) || last.states.length === 0) return;
+  const { fileName, rows } = store.getBrands();
+  if (last.fileName !== fileName || last.rowCount !== rows.length) return;
+  for (const s of last.states) {
+    if (typeof s.index !== "number" || s.index < 0 || s.index >= rows.length) continue;
+    statuses.set(s.index, { status: s.status || "idle", message: s.message || "" });
+  }
+  const runStatus = document.getElementById("brands-run-status");
+  if (runStatus && typeof last.done === "number" && typeof last.total === "number") {
+    runStatus.textContent = `Finished: ${last.done}/${last.total} done.`;
+  }
+}
+
 export function initBrands() {
   const input = document.getElementById("brands-file");
   const status = document.getElementById("brands-status");
   const table = document.getElementById("brands-table");
   if (!input) return;
   selectAll(store.getBrands().rows);
+  restoreLastRun();
   paint();
 
   input.addEventListener("change", async () => {
@@ -206,9 +229,10 @@ export function initBrands() {
             paint();
           }
         });
-        // Persist one entry per successful row (Unit 8). Subject is the
-        // substituted template subject; body is the AI-completed email
-        // (falling back to the substituted body when the model says nothing).
+        // Persist one entry per successful row (Unit 8). Subject/body are
+        // already final — the runner applied the first-line split when the
+        // block opted in, else subject is the template subject and body is
+        // the AI reply (falling back to the substituted body).
         for (const r of results) {
           if (r.status !== "done") continue;
           store.addRun(
@@ -216,11 +240,21 @@ export function initBrands() {
               brandName: r.brandName,
               emailSequence: r.emailSequence,
               subject: r.subject,
-              body: r.content && r.content.trim() !== "" ? r.content : r.body
+              body: r.body
             })
           );
         }
         refreshRuns();
+        // Persist the summary so a reload still shows what happened —
+        // per-row pills + the Finished line are otherwise session-only.
+        store.setLastRun({
+          at: Date.now(),
+          fileName: store.getBrands().fileName,
+          rowCount: rows.length,
+          total: indices.length,
+          done: results.filter((r) => r.status === "done").length,
+          states: results.map((r) => ({ index: r.index, status: r.status, message: r.message || "" }))
+        });
       } finally {
         running = false;
         setRunUiEnabled(true);

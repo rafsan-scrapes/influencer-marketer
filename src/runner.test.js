@@ -92,6 +92,46 @@ describe("runRows", () => {
       content: "generated!"
     });
   });
+
+  it("prompt may reference [Subject]/[Body] (user's exact pattern)", async () => {
+    const calls = [];
+    mockFetchOk(calls);
+    const templates = {
+      default: {
+        subject: "[First Name], lets run it back",
+        body: "Hey [First Name], loved the integration.",
+        prompt: "The following is an email:\n[Subject]\n[Body]\nFill the span."
+      },
+      conditions: []
+    };
+    const rows = [{ "First Name": "Bob", Name: "X", "Email Sequence": "1" }];
+    const results = await runRows({ rows, indices: [0], templates, config: CONFIG });
+    expect(results[0].status).toBe("done");
+    expect(calls[0][1].content).toContain("Bob, lets run it back");
+  });
+
+  it("subjectFromFirstLine splits AI reply into subject + body", async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "Hey Bob, quick idea\n\nHey Bob, loved the video." } }] })
+    });
+    const templates = {
+      default: { subject: "Hi [Name]", body: "Yo [Name]", prompt: "Go.", subjectFromFirstLine: true },
+      conditions: []
+    };
+    const results = await runRows({ rows: ROWS, indices: [0], templates, config: CONFIG });
+    expect(results[0]).toMatchObject({
+      status: "done",
+      subject: "Hey Bob, quick idea",
+      body: "Hey Bob, loved the video."
+    });
+  });
+
+  it("subjectFromFirstLine off keeps template subject, AI reply as body", async () => {
+    mockFetchOk([]);
+    const results = await runRows({ rows: ROWS, indices: [0], templates: TEMPLATES, config: CONFIG });
+    expect(results[0]).toMatchObject({ subject: "Hi Clay", body: "generated!" });
+  });
 });
 
 describe("column helpers", () => {

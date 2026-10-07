@@ -6,7 +6,8 @@ import {
   extractPlaceholders,
   substitutePlaceholders,
   evaluateConditions,
-  buildPromptPayload
+  buildPromptPayload,
+  splitFirstLine
 } from "./templates.js";
 
 const ROWS = [
@@ -106,5 +107,35 @@ describe("buildPromptPayload", () => {
     );
     expect(userContent).not.toContain("Instruction:");
     expect(userContent).toContain("Hi Clay");
+  });
+  it("resolves [Subject]/[Body] in the prompt to the filled template", () => {
+    const { userContent } = buildPromptPayload(
+      { subject: "Hi [Name]", body: "Yo [Name]", prompt: "Complete:\n[Subject]\n[Body]" },
+      ROWS[0]
+    );
+    expect(userContent).toContain("Complete:\nHi Clay\nYo Clay");
+    expect(userContent).not.toMatch(/\[[^\]]+\]/);
+  });
+  it("[Subject] is case-insensitive and may be empty without throwing", () => {
+    const out = substitutePlaceholders("[subject] + [BODY]", ROWS[0], { Subject: "", Body: "b" });
+    expect(out).toBe(" + b");
+  });
+  it("extras take precedence but unknown tokens still throw", () => {
+    expect(() => substitutePlaceholders("[Nope]", ROWS[0], { Subject: "s", Body: "b" })).toThrow(
+      "[Nope] is empty in CSV for this row"
+    );
+  });
+});
+
+describe("splitFirstLine", () => {
+  it("splits first non-empty line as subject, strips Subject: label", () => {
+    expect(splitFirstLine("My Subject\n\nHi there")).toEqual({ subject: "My Subject", body: "Hi there" });
+    expect(splitFirstLine("\nSubject: Hello World\nBody line")).toEqual({ subject: "Hello World", body: "Body line" });
+  });
+  it("blank content yields empty subject and body", () => {
+    expect(splitFirstLine("   \n  ")).toEqual({ subject: "", body: "" });
+  });
+  it("single line yields subject only", () => {
+    expect(splitFirstLine("Only subject")).toEqual({ subject: "Only subject", body: "" });
   });
 });

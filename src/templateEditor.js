@@ -17,7 +17,8 @@ export function createConditionBlock() {
     conditions: [{ column: "", op: "equals", value: "" }],
     subject: "",
     body: "",
-    prompt: ""
+    prompt: "",
+    subjectFromFirstLine: false
   };
 }
 
@@ -106,6 +107,10 @@ function blockHtml(block, headers, isFirst, isLast) {
     `<input data-field="subject" type="text" value="${escapeHtml(block.subject)}" placeholder="Subject" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm" />` +
     `<textarea data-field="body" placeholder="Body" rows="3" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm">${escapeHtml(block.body)}</textarea>` +
     `<textarea data-field="prompt" placeholder="Prompt (optional)" rows="2" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm">${escapeHtml(block.prompt)}</textarea>` +
+    `<label class="flex items-center gap-2 text-xs text-slate-600">` +
+    `<input data-field="subjectFromFirstLine" type="checkbox"${block.subjectFromFirstLine ? " checked" : ""} />` +
+    `AI returns final subject on first line (split into Subject + Body)` +
+    `</label>` +
     `</div></div>`
   );
 }
@@ -133,14 +138,16 @@ function readStateFromDom() {
       conditions: condRows,
       subject: el.querySelector('[data-field="subject"]').value,
       body: el.querySelector('[data-field="body"]').value,
-      prompt: el.querySelector('[data-field="prompt"]').value
+      prompt: el.querySelector('[data-field="prompt"]').value,
+      subjectFromFirstLine: el.querySelector('[data-field="subjectFromFirstLine"]').checked
     };
   });
   return {
     default: {
       subject: defSubject ? defSubject.value : "",
       body: defBody ? defBody.value : "",
-      prompt: defPrompt ? defPrompt.value : ""
+      prompt: defPrompt ? defPrompt.value : "",
+      subjectFromFirstLine: !!document.getElementById("tpl-def-split")?.checked
     },
     conditions: blocks
   };
@@ -169,6 +176,8 @@ export function initTemplateEditor() {
   defSubject.value = state.default.subject;
   defBody.value = state.default.body;
   defPrompt.value = state.default.prompt;
+  const defSplit = document.getElementById("tpl-def-split");
+  if (defSplit) defSplit.checked = state.default.subjectFromFirstLine === true;
   renderConditions();
   renderChips(store.getBrands().headers);
 

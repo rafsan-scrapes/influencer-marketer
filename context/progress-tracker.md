@@ -4,7 +4,7 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-Phase 1 (Brand outreach generator): complete — all 9 units verified. Remaining: manual browser passes with a real API key.
+Phase 1 (Brand outreach generator): complete — all 9 units verified, plus Bynara migration, reserved `[Subject]`/`[Body]` prompt tokens, per-block first-line subject split, and persisted last-run summary. Remaining: manual browser pass with a Bynara key.
 
 ## Current Goal
 
@@ -101,6 +101,9 @@ Reload the app after: config saved, template with 2 condition blocks saved, a CS
 
 **Verify:** All state restored on reload. `npm run build` exits 0.
 
+### Unit 10 — Add a no AI button
+Make it so that there is a button when a csv is uploaded and for that csv no AI is used the program just replaces the placeholders.
+**Verify:** All state restored on reload. `npm run build` exits 0.
 ---
 
 ## Open Questions

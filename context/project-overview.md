@@ -87,9 +87,11 @@ The AI's job is narrow: fill only the spans or fields the Prompt instructs. The 
 
 - Syntax: `[Column Name]` — exact CSV header name, case-insensitive.
 - Source: CSV row values only. No computed or automatic values.
+- **Reserved tokens in the Prompt box**: `[Subject]` and `[Body]` expand to the selected block's already-filled Subject and Body (case-insensitive, verbatim even when empty). All other tokens must be CSV columns.
 - `[email_sequence]` is a regular CSV column (user-filled before upload) and is treated identically to any other column. Its value determines which email in the sequence this row is sending.
 - Insertion: clicking a column chip in the template editor inserts the placeholder at the cursor position in the focused input.
 - Validation at run time: if any placeholder used in the selected Subject, Body, or Prompt resolves to an empty string, generation is blocked for that row with a specific error message. No silent substitution of empty strings.
+- **First-line subject split (per-block opt-in checkbox)**: when enabled, the AI is expected to return the final subject on the first non-empty line; the app saves that line as Subject (stripping a leading `Subject:` label) and the rest as Body.
 
 ## Scope
 
