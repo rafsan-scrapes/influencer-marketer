@@ -8,7 +8,7 @@ Phase 1 (Brand outreach generator): complete — all 9 units verified, plus Byna
 
 ## Current Goal
 
-Manual browser pass (Bynara key + live run), then Phase 2 (Influencers).
+Manual browser pass (Bynara key + live AI run, plus Run without AI on a fresh CSV), then Phase 2 (Influencers).
 
 ## Completed
 
@@ -101,9 +101,8 @@ Reload the app after: config saved, template with 2 condition blocks saved, a CS
 
 **Verify:** All state restored on reload. `npm run build` exits 0.
 
-### Unit 10 — Add a no AI button
-Make it so that there is a button when a csv is uploaded and for that csv no AI is used the program just replaces the placeholders.
-**Verify:** All state restored on reload. `npm run build` exits 0.
+### Unit 10 — No-AI run done
+`src/runner.js` gained `runRowsNoAi` (condition evaluation + Subject/Body placeholder substitution only, no fetch, Prompt ignored); Brands tab has a second **Run without AI** button (`brands-run-noai`) sharing the selection/status/Runs persistence flow with the AI run. Verify passed: `npm test` 48/48; inline node check (substitution + Prompt ignored); `npm run build` exits 0.
 ---
 
 ## Open Questions

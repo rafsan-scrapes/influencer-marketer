@@ -1,2 +1,5 @@
-node_modules/
-dist/
+# Private source – public repo placeholder only.
+# Ignore everything. README + this file are the only tracked files.
+*
+!/.gitignore
+!/README.md

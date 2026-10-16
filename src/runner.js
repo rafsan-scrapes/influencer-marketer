@@ -5,7 +5,7 @@
 // Run entries are NOT persisted here (Unit 8 owns the runs store);
 // per-row results are returned for the caller to save.
 
-import { evaluateConditions, buildPromptPayload, splitFirstLine } from "./templates.js";
+import { evaluateConditions, buildPromptPayload, substitutePlaceholders, splitFirstLine } from "./templates.js";
 import { sendMessage } from "./api.js";
 
 export const STATUSES = ["idle", "generating", "done", "error", "skipped"];
@@ -82,6 +82,45 @@ export async function runRows({ rows, indices, templates, config, onStatus }) {
         subject: finalSubject,
         body: finalBody,
         content
+      });
+    } catch (err) {
+      const message = err && err.message ? err.message : String(err);
+      notify(index, "error", message);
+      results.push({ index, status: "error", message });
+    }
+  }
+  return results;
+}
+
+// No-AI fast path: placeholder substitution only, no fetch, no prompt.
+// Only Subject + Body placeholders are resolved (Prompt is ignored), so rows
+// whose Prompt references an empty cell still succeed. Same result shape as
+// runRows (minus `content`) so callers can persist entries identically.
+export async function runRowsNoAi({ rows, indices, templates, onStatus }) {
+  const notify = typeof onStatus === "function" ? onStatus : () => {};
+  const results = [];
+  for (const index of indices) {
+    const row = rows[index];
+    notify(index, "generating", "");
+    try {
+      const block = evaluateConditions(templates.conditions, row, templates.default);
+      // Throws "[Column] is empty in CSV for this row" on any empty cell.
+      const subject = substitutePlaceholders(block.subject || "", row);
+      const body = substitutePlaceholders(block.body || "", row);
+      if (subject.trim() === "" && body.trim() === "") {
+        notify(index, "skipped", "Subject and Body are both empty — nothing to generate.");
+        results.push({ index, status: "skipped", message: "Subject and Body are both empty." });
+        continue;
+      }
+      notify(index, "done", "");
+      results.push({
+        index,
+        status: "done",
+        brandName: brandNameFor(row),
+        emailSequence: emailSequenceFor(row),
+        subject,
+        body,
+        noAi: true
       });
     } catch (err) {
       const message = err && err.message ? err.message : String(err);

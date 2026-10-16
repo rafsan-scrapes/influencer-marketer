@@ -72,6 +72,7 @@ The AI's job is narrow: fill only the spans or fields the Prompt instructs. The 
 - **Rows table**: one row per brand, columns derived from the CSV. Shows all column values.
 - **Row selection**: checkbox per row, Select All / Deselect All.
 - **Run button**: processes selected rows one at a time (sequential, not concurrent).
+- **Run without AI button**: same row selection, but skips the AI call entirely — the app only evaluates conditions, substitutes `[Column Name]` placeholders in Subject/Body (Prompt is ignored), and saves the result to Runs. Faster; needs no API key.
 - **Per-row status**: idle → generating → done / error / skipped.
 - **Error display**: shown inline on the row — e.g. `"[Latest Video Sponsored] is empty in CSV for this row"`.
 - Uploading a new CSV replaces the current table but does not clear Runs.

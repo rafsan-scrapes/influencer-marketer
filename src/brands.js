@@ -6,7 +6,7 @@
 
 import { store } from "./store.js";
 import { parseCsv } from "./csv.js";
-import { runRows } from "./runner.js";
+import { runRows, runRowsNoAi } from "./runner.js";
 import { makeRunEntry, refreshRuns } from "./runs.js";
 
 export function escapeHtml(value) {
@@ -123,7 +123,7 @@ function paint() {
 paint.lastHeaders = null;
 
 function setRunUiEnabled(enabled) {
-  for (const id of ["brands-run", "brands-select-all", "brands-deselect-all"]) {
+  for (const id of ["brands-run", "brands-run-noai", "brands-select-all", "brands-deselect-all"]) {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   }
@@ -204,9 +204,9 @@ export function initBrands() {
   }
 
   const runBtn = document.getElementById("brands-run");
+  const runNoAiBtn = document.getElementById("brands-run-noai");
   const runStatus = document.getElementById("brands-run-status");
-  if (runBtn) {
-    runBtn.addEventListener("click", async () => {
+  async function executeRun(useAi) {
       if (running) return;
       const { rows } = store.getBrands();
       const indices = [...selection].filter((i) => i >= 0 && i < rows.length).sort((a, b) => a - b);
@@ -217,18 +217,28 @@ export function initBrands() {
       running = true;
       setRunUiEnabled(false);
       resetStatuses();
-      if (runStatus) runStatus.textContent = `Running ${indices.length} row${indices.length === 1 ? "" : "s"}…`;
+      if (runStatus) runStatus.textContent = `Running ${indices.length} row${indices.length === 1 ? "" : "s"}${useAi ? "" : " (no AI)"}…`;
       try {
-        const results = await runRows({
-          rows,
-          indices,
-          templates: store.getTemplates(),
-          config: store.getConfig(),
-          onStatus: (index, st, message) => {
-            statuses.set(index, { status: st, message: message || "" });
-            paint();
-          }
-        });
+        const results = useAi
+          ? await runRows({
+              rows,
+              indices,
+              templates: store.getTemplates(),
+              config: store.getConfig(),
+              onStatus: (index, st, message) => {
+                statuses.set(index, { status: st, message: message || "" });
+                paint();
+              }
+            })
+          : await runRowsNoAi({
+              rows,
+              indices,
+              templates: store.getTemplates(),
+              onStatus: (index, st, message) => {
+                statuses.set(index, { status: st, message: message || "" });
+                paint();
+              }
+            });
         // Persist one entry per successful row (Unit 8). Subject/body are
         // already final — the runner applied the first-line split when the
         // block opted in, else subject is the template subject and body is
@@ -263,6 +273,11 @@ export function initBrands() {
           runStatus.textContent = `Finished: ${done}/${indices.length} done.`;
         }
       }
-    });
+  }
+  if (runBtn) {
+    runBtn.addEventListener("click", () => executeRun(true));
+  }
+  if (runNoAiBtn) {
+    runNoAiBtn.addEventListener("click", () => executeRun(false));
   }
 }
