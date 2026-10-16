@@ -105,6 +105,10 @@ Reload the app after: config saved, template with 2 condition blocks saved, a CS
 `src/runner.js` gained `runRowsNoAi` (condition evaluation + Subject/Body placeholder substitution only, no fetch, Prompt ignored); Brands tab has a second **Run without AI** button (`brands-run-noai`) sharing the selection/status/Runs persistence flow with the AI run. Verify passed: `npm test` 48/48; inline node check (substitution + Prompt ignored); `npm run build` exits 0.
 ---
 
+### Repo hygiene — public preview
+`.gitignore` narrowed to `add_lead_columns.py`, `filter_leadlist.py`, `*.csv` (+ existing `node_modules/`, `dist/`); `README.md` added as public preview (what it does, agency value, why not production-ready, LinkedIn/Instagram CTA with placeholder URLs to fill in).
+---
+
 ## Open Questions
 
 - None currently. All product decisions resolved.

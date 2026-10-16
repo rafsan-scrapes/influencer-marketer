@@ -1,5 +1,5 @@
-# Private source – public repo placeholder only.
-# Ignore everything. README + this file are the only tracked files.
-*
-!/.gitignore
-!/README.md
+node_modules/
+dist/
+*.csv
+add_lead_columns.py
+filter_leadlist.py
