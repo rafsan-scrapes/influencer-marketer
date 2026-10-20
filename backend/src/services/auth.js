@@ -1,7 +1,8 @@
-// backend/src/services/auth.js — Password hashing, JWT, API key encryption
+// backend/src/services/auth.js — Password hashing, JWT, API key encryption (AES-256-GCM)
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { query } from '../db.js';
+import crypto from 'crypto';
+import { query, queryOne } from '../db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // 32 chars for AES-256
@@ -14,6 +15,9 @@ if (!JWT_SECRET) {
 if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 32) {
   throw new Error('ENCRYPTION_KEY must be exactly 32 characters');
 }
+
+// Derive a 32-byte key from ENCRYPTION_KEY using SHA-256
+const ENCRYPTION_KEY_BUFFER = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
 
 // --- Password ---
 
@@ -59,66 +63,74 @@ export function clearAuthCookie(res) {
   });
 }
 
-// --- API Key Encryption (AES-256-GCM via pgcrypto or app-level) ---
-// Using pgcrypto's pgp_sym_encrypt/decrypt with a key derived from ENCRYPTION_KEY
+// --- API Key Encryption (AES-256-GCM) ---
+// Format: iv (12 bytes) + ciphertext + authTag (16 bytes) -> base64
 
-export async function encryptApiKey(apiKey) {
+export function encryptApiKey(apiKey) {
   if (!apiKey) return null;
-  const result = await query(
-    `SELECT pgp_sym_encrypt($1, $2) as encrypted`,
-    [apiKey, ENCRYPTION_KEY]
-  );
-  return result.rows[0].encrypted;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY_BUFFER, iv);
+  const ciphertext = Buffer.concat([cipher.update(apiKey, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  // Combine: iv + ciphertext + authTag
+  const combined = Buffer.concat([iv, ciphertext, authTag]);
+  return combined.toString('base64');
 }
 
-export async function decryptApiKey(encrypted) {
+export function decryptApiKey(encrypted) {
   if (!encrypted) return null;
-  const result = await query(
-    `SELECT pgp_sym_decrypt($1, $2) as decrypted`,
-    [encrypted, ENCRYPTION_KEY]
-  );
-  return result.rows[0].decrypted;
+  try {
+    const combined = Buffer.from(encrypted, 'base64');
+    const iv = combined.subarray(0, 12);
+    const authTag = combined.subarray(-16);
+    const ciphertext = combined.subarray(12, -16);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY_BUFFER, iv);
+    decipher.setAuthTag(authTag);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return plaintext.toString('utf8');
+  } catch (err) {
+    console.error('Failed to decrypt API key:', err.message);
+    return null;
+  }
 }
 
 // --- User & Settings DB ---
 
 export async function createUser(email, passwordHash) {
-  const result = await query(
-    `INSERT INTO users (email, password_hash) VALUES ($1, $2)
-     RETURNING id, email, created_at, updated_at`,
-    [email.toLowerCase(), passwordHash]
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await query(
+    `INSERT INTO users (id, email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+    [id, email.toLowerCase(), passwordHash, now, now]
   );
-  const user = result.rows[0];
   // Create default settings
   await query(
-    `INSERT INTO user_settings (user_id) VALUES ($1)`,
-    [user.id]
+    `INSERT INTO user_settings (user_id, created_at, updated_at) VALUES (?, ?, ?)`,
+    [id, now, now]
   );
-  return user;
+  return { id, email: email.toLowerCase(), created_at: now, updated_at: now };
 }
 
 export async function findUserByEmail(email) {
-  const result = await query(
-    `SELECT id, email, password_hash, created_at, updated_at
-     FROM users WHERE email = $1`,
+  const result = await queryOne(
+    `SELECT id, email, password_hash, created_at, updated_at FROM users WHERE email = ?`,
     [email.toLowerCase()]
   );
   return result.rows[0] || null;
 }
 
 export async function findUserById(id) {
-  const result = await query(
-    `SELECT id, email, created_at, updated_at
-     FROM users WHERE id = $1`,
+  const result = await queryOne(
+    `SELECT id, email, created_at, updated_at FROM users WHERE id = ?`,
     [id]
   );
   return result.rows[0] || null;
 }
 
 export async function getUserSettings(userId) {
-  const result = await query(
+  const result = await queryOne(
     `SELECT user_id, gemini_api_key_encrypted, default_ai_model, default_ai_temperature, created_at, updated_at
-     FROM user_settings WHERE user_id = $1`,
+     FROM user_settings WHERE user_id = ?`,
     [userId]
   );
   return result.rows[0] || null;
@@ -127,19 +139,18 @@ export async function getUserSettings(userId) {
 export async function updateUserSettings(userId, { geminiApiKey, defaultAiModel, defaultAiTemperature }) {
   const fields = [];
   const values = [];
-  let paramIndex = 1;
 
   if (geminiApiKey !== undefined) {
-    const encrypted = await encryptApiKey(geminiApiKey);
-    fields.push(`gemini_api_key_encrypted = $${paramIndex++}`);
+    const encrypted = encryptApiKey(geminiApiKey);
+    fields.push(`gemini_api_key_encrypted = ?`);
     values.push(encrypted);
   }
   if (defaultAiModel !== undefined) {
-    fields.push(`default_ai_model = $${paramIndex++}`);
+    fields.push(`default_ai_model = ?`);
     values.push(defaultAiModel);
   }
   if (defaultAiTemperature !== undefined) {
-    fields.push(`default_ai_temperature = $${paramIndex++}`);
+    fields.push(`default_ai_temperature = ?`);
     values.push(defaultAiTemperature);
   }
 
@@ -147,15 +158,15 @@ export async function updateUserSettings(userId, { geminiApiKey, defaultAiModel,
     return getUserSettings(userId);
   }
 
-  fields.push(`updated_at = NOW()`);
+  fields.push(`updated_at = ?`);
+  values.push(new Date().toISOString());
   values.push(userId);
 
-  const result = await query(
-    `UPDATE user_settings SET ${fields.join(', ')} WHERE user_id = $${paramIndex}
-     RETURNING user_id, gemini_api_key_encrypted, default_ai_model, default_ai_temperature, created_at, updated_at`,
+  await query(
+    `UPDATE user_settings SET ${fields.join(', ')} WHERE user_id = ?`,
     values
   );
-  return result.rows[0];
+  return getUserSettings(userId);
 }
 
 export async function getUserDecryptedApiKey(userId) {

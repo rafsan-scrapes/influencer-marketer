@@ -15,23 +15,22 @@ Build authentication backend: bcrypt password hashing, JWT tokens, auth middlewa
 - Product scope, UI layout, template/condition model, placeholder system, and run output model finalised in `project-overview.md`.
 - Workflow rules finalised in `ai-workflow-rules.md`.
 - Architecture decisions, module boundaries, database schema, API contracts documented in `architecture.md`.
+- **PostgreSQL → SQLite migration complete**: All backend files updated to use `better-sqlite3`, Node.js crypto (AES-256-GCM) for API key encryption, SQLite schema with UUIDs generated in-app.
 
 ## In Progress
 
 ### Phase 1: Backend Foundation (Units 1–8) — **COMPLETE**
 
-#### Unit 1 — Express + pg Setup, Railway Config, Health Check
+#### Unit 1 — Express + SQLite Setup, Local Dev Config, Health Check
 - [x] Create `backend/` folder with `package.json`
-- [x] Install dependencies: `express`, `pg`, `cors`, `dotenv`, `zod`, `bcrypt`, `jsonwebtoken`
-- [x] Create `src/db.js` with pg Pool and migration runner
-- [x] Create `src/migrations/001_init.sql` with full schema (including users, user_settings)
+- [x] Install dependencies: `express`, `better-sqlite3`, `cors`, `dotenv`, `zod`, `bcrypt`, `jsonwebtoken`
+- [x] Create `src/db.js` with better-sqlite3 connection and migration runner
+- [x] Create `src/migrations/001_init.sql` with full SQLite schema (including users, user_settings)
 - [x] Create `src/index.js` with Express app, CORS, JSON parser, error handler
 - [x] Add health check endpoint `GET /health`
-- [x] Create `Dockerfile` for backend
-- [x] Create `railway.toml` with backend service
 - [x] Add `npm run dev`, `npm run start`, `npm run migrate` scripts
 
-**Verify:** `npm run dev` starts server on port 3000; `GET /health` returns `{ status: "ok" }`; `npm run migrate` creates tables in local PostgreSQL.
+**Verify:** `npm run dev` starts server on port 3000; `GET /health` returns `{ status: "ok" }`; `npm run migrate` creates tables in local SQLite.
 
 ---
 
@@ -239,7 +238,7 @@ Build authentication backend: bcrypt password hashing, JWT tokens, auth middlewa
 
 ---
 
-### Phase 3: Polish & Deploy (Units 20–22)
+### Phase 3: Polish & Local Production Build (Units 20–22)
 
 #### Unit 20 — Error Handling, Loading States, Validation
 - [ ] Frontend: global error boundary, toast notifications
@@ -252,23 +251,23 @@ Build authentication backend: bcrypt password hashing, JWT tokens, auth middlewa
 
 ---
 
-#### Unit 21 — Railway Deployment Config
-- [ ] Create `frontend/Dockerfile` (multi-stage: build → nginx)
+#### Unit 21 — Local Production Build Config
+- [ ] Create `frontend/Dockerfile` (multi-stage: build → nginx) for optional containerized local run
 - [ ] Create `frontend/nginx.conf` (SPA fallback, proxy API calls)
-- [ ] Update `railway.toml` with frontend service
-- [ ] Configure Railway environment variables: `DATABASE_URL` (auto), `JWT_SECRET`, `ENCRYPTION_KEY`, `FRONTEND_URL`, `VITE_API_URL`
-- [ ] Test local Docker build for both services
+- [ ] Create `backend/Dockerfile` for optional containerized local run
+- [ ] Configure local environment variables: `JWT_SECRET`, `ENCRYPTION_KEY`, `FRONTEND_URL`, `PORT`, `DB_PATH`, `VITE_API_URL`
+- [ ] Test local Docker build for both services (optional)
 
-**Verify:** `docker build` passes for both; Railway deployment succeeds.
+**Verify:** `docker build` passes for both; `docker compose up` runs full stack locally (optional).
 
 ---
 
 #### Unit 22 — E2E Testing & Documentation
 - [ ] Full flow test: signup → login → settings (API key) → create project → sequences → templates → import CSV → set steps → generate → view → copy
-- [ ] Update `README.md` with setup, deployment, usage instructions
+- [ ] Update `README.md` with setup, local run instructions, usage guide
 - [ ] Document API endpoints, data model, environment variables
 
-**Verify:** Complete manual walkthrough on Railway; all features work end-to-end.
+**Verify:** Complete manual walkthrough locally; all features work end-to-end.
 
 ---
 
@@ -280,25 +279,25 @@ Build authentication backend: bcrypt password hashing, JWT tokens, auth middlewa
 
 | Decision | Rationale |
 |---|---|
-| Single repo, separate frontend/backend folders | Simple monorepo; independent deploys via Railway services |
-| Express + pg (not ORM) | Full SQL control, minimal dependencies, easy migrations |
+| Single repo, separate frontend/backend folders | Simple monorepo; can run independently or together locally |
+| Express + better-sqlite3 (not ORM) | Full SQL control, minimal dependencies, easy migrations, zero-config local dev |
 | Client-side CSV parse (PapaParse) | Keeps large files off server; preview before import |
 | Backend proxies Gemini | API key never exposed to browser; single auth point |
 | Sequential generation | Avoids rate limits; simpler debugging; matches Phase 1 |
 | Cascade delete on project | Clean data hygiene; no orphaned records |
-| UUID primary keys | Distributed-friendly; no sequence conflicts |
-| JSONB for csv_data | Flexible schema; stores all CSV columns without migrations |
+| UUID primary keys (app-generated) | Distributed-friendly; no sequence conflicts |
+| JSON TEXT for csv_data | Flexible schema; stores all CSV columns without migrations |
 | JWT in httpOnly cookies | Secure, CSRF-resistant, automatic with credentials |
-| Per-user encrypted API keys | Multi-user support, no .env secrets needed |
+| Per-user encrypted API keys (AES-256-GCM) | Multi-user support, no .env secrets needed |
 
 ## Session Notes
 
 - **Frontend**: Vite + Vanilla JS + Tailwind (existing, enhanced)
-- **Backend**: Express + pg (new)
-- **Database**: PostgreSQL on Railway
+- **Backend**: Express + better-sqlite3 (new)
+- **Database**: SQLite (local file `./data/influencer_marketer.sqlite`)
 - **AI**: Google Gemini (backend-proxied, per-user API key)
 - **Auth**: Email/password, JWT in httpOnly cookies
-- **Testing**: User tests on Railway after each unit; no automated test suite required
+- **Testing**: User tests locally after each unit; no automated test suite required
 
 ---
 

@@ -2,9 +2,9 @@
 
 ## Overview
 
-Influencer Marketer is a **multi-project email campaign tool** for running personalised multi-step email sequences to influencers/creators. The user creates an account (email/password), then creates projects, each with its own CSV of contacts, configurable email sequences (steps), and templates with conditional logic. An AI model (Google Gemini via backend proxy) fills templates using each row's values. The output — generated Subject and Body per contact per sequence step — is saved to a PostgreSQL database. The app does not send emails; it generates copy-pasteable content for manual outreach.
+Influencer Marketer is a **multi-project email campaign tool** for running personalised multi-step email sequences to influencers/creators. The user creates an account (email/password), then creates projects, each with its own CSV of contacts, configurable email sequences (steps), and templates with conditional logic. An AI model (Google Gemini via backend proxy) fills templates using each row's values. The output — generated Subject and Body per contact per sequence step — is saved to a SQLite database. The app does not send emails; it generates copy-pasteable content for manual outreach.
 
-**No .env file required** — all configuration (database URL, API keys) is managed via Railway's environment variables or in-app settings. The Gemini API key is stored per-user in the database and entered through the UI.
+**Minimal .env file** — only `JWT_SECRET`, `ENCRYPTION_KEY`, `FRONTEND_URL`, `PORT`, and `DB_PATH` are required. The database is a local SQLite file (`./data/influencer_marketer.sqlite`). The Gemini API key is stored per-user in the database (encrypted) and entered through the UI. **Local-only deployment** — no cloud hosting, no Railway, no Docker required.
 
 ## Goals
 
@@ -14,8 +14,8 @@ Influencer Marketer is a **multi-project email campaign tool** for running perso
 4. **Per-sequence templates with conditions**: Each sequence has a default template + any number of if-condition override blocks (extends Phase 1 logic)
 5. **CSV-driven personalization**: Upload CSV per project; columns become placeholders `[Column Name]` for templates and condition evaluation
 6. **AI-powered generation**: Google Gemini API (backend-proxied) fills templates per contact per sequence step; each template controls AI usage, model, and prompt. API key configured per-user in Settings.
-7. **Persistent generation history**: All generated emails (subject/body) stored in PostgreSQL per contact per sequence; viewable, copyable, deletable
-8. **Railway-ready deployment**: Static frontend + Express backend + PostgreSQL on Railway. No .env file — Railway provides `DATABASE_URL`; `GEMINI_API_KEY` entered in-app per user.
+7. **Persistent generation history**: All generated emails (subject/body) stored in SQLite per contact per sequence; viewable, copyable, deletable
+8. **Local-only deployment**: Static frontend (Vite dev server) + Express backend + SQLite file. Minimal .env — `JWT_SECRET`, `ENCRYPTION_KEY`, `FRONTEND_URL`, `PORT`, `DB_PATH`; `GEMINI_API_KEY` entered in-app per user. No cloud hosting, no containers.
 
 ## Core User Flow
 
@@ -105,9 +105,9 @@ Influencer Marketer is a **multi-project email campaign tool** for running perso
 - CSV import → contacts table with sequence step dropdown
 - Sequential generation per sequence step (backend orchestrated)
 - Gemini AI integration via backend proxy (per-user API key)
-- PostgreSQL persistence (users, projects, sequences, templates, conditions, contacts, generated_emails)
-- Railway deployment (frontend static + backend service + PostgreSQL)
-- Vite + vanilla JS + Tailwind frontend; Express + pg backend
+- SQLite persistence (users, projects, sequences, templates, conditions, contacts, generated_emails)
+- Local deployment (Vite dev server + Express + SQLite)
+- Vite + vanilla JS + Tailwind frontend; Express + better-sqlite3 backend
 
 ### Out of Scope
 - Sending emails (SMTP, Gmail API, any mailbox integration)
@@ -127,9 +127,9 @@ Influencer Marketer is a **multi-project email campaign tool** for running perso
 5. Condition blocks work per sequence (first match wins, fallback to default)
 6. Empty placeholder cells block generation with specific error message
 7. AI toggle per template works (on = Gemini call, off = pure substitution)
-8. All data survives browser reload and server restart (PostgreSQL)
+8. All data survives browser reload and server restart (SQLite)
 9. `npm run build` passes for frontend; `npm run start` works for backend
-10. Deployed to Railway: frontend accessible, backend API responds, DB connected — **no .env file needed**
+10. Running locally: `npm run dev` (frontend) + `npm run dev` (backend) both work; frontend accessible at `http://localhost:5173`, backend API at `http://localhost:3000`, DB connected via SQLite file
 
 ## Data Shapes (API Contracts)
 

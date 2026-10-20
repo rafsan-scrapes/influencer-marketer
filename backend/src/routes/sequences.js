@@ -1,6 +1,7 @@
 // backend/src/routes/sequences.js — Sequence CRUD API
 import express from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { query } from '../db.js';
 
 const router = express.Router();
@@ -22,7 +23,7 @@ router.get('/projects/:projectId/sequences', async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const result = await query(
-      'SELECT id, project_id, name, step_order, created_at FROM sequences WHERE project_id = $1 ORDER BY step_order',
+      'SELECT id, project_id, name, step_order, created_at FROM sequences WHERE project_id = ? ORDER BY step_order',
       [projectId]
     );
     res.json(result.rows);
@@ -39,14 +40,16 @@ router.post('/projects/:projectId/sequences', async (req, res, next) => {
 
     // Get the next step_order
     const maxOrderResult = await query(
-      'SELECT COALESCE(MAX(step_order), 0) as max_order FROM sequences WHERE project_id = $1',
+      'SELECT COALESCE(MAX(step_order), 0) as max_order FROM sequences WHERE project_id = ?',
       [projectId]
     );
     const nextOrder = parseInt(maxOrderResult.rows[0].max_order) + 1;
 
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
     const result = await query(
-      'INSERT INTO sequences (project_id, name, step_order) VALUES ($1, $2, $3) RETURNING id, project_id, name, step_order, created_at',
-      [projectId, data.name, nextOrder]
+      'INSERT INTO sequences (id, project_id, name, step_order, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id, project_id, name, step_order, created_at',
+      [id, projectId, data.name, nextOrder, now]
     );
 
     res.status(201).json(result.rows[0]);
@@ -66,10 +69,9 @@ router.patch('/projects/:projectId/sequences/:id', async (req, res, next) => {
 
     const fields = [];
     const values = [];
-    let paramIndex = 1;
 
     if (data.name !== undefined) {
-      fields.push(`name = $${paramIndex++}`);
+      fields.push(`name = ?`);
       values.push(data.name);
     }
 
@@ -80,7 +82,7 @@ router.patch('/projects/:projectId/sequences/:id', async (req, res, next) => {
     values.push(id, projectId);
 
     const result = await query(
-      `UPDATE sequences SET ${fields.join(', ')} WHERE id = $${paramIndex} AND project_id = $${paramIndex + 1} RETURNING id, project_id, name, step_order, created_at`,
+      `UPDATE sequences SET ${fields.join(', ')} WHERE id = ? AND project_id = ? RETURNING id, project_id, name, step_order, created_at`,
       values
     );
 
@@ -104,7 +106,7 @@ router.delete('/projects/:projectId/sequences/:id', async (req, res, next) => {
 
     // Get the step_order of the sequence being deleted
     const deletedSeq = await query(
-      'SELECT step_order FROM sequences WHERE id = $1 AND project_id = $2',
+      'SELECT step_order FROM sequences WHERE id = ? AND project_id = ?',
       [id, projectId]
     );
 
@@ -115,11 +117,11 @@ router.delete('/projects/:projectId/sequences/:id', async (req, res, next) => {
     const deletedOrder = deletedSeq.rows[0].step_order;
 
     // Delete the sequence (cascades to templates, conditions)
-    await query('DELETE FROM sequences WHERE id = $1 AND project_id = $2', [id, projectId]);
+    await query('DELETE FROM sequences WHERE id = ? AND project_id = ?', [id, projectId]);
 
     // Decrement step_order for sequences after the deleted one
     await query(
-      'UPDATE sequences SET step_order = step_order - 1 WHERE project_id = $1 AND step_order > $2',
+      'UPDATE sequences SET step_order = step_order - 1 WHERE project_id = ? AND step_order > ?',
       [projectId, deletedOrder]
     );
 
@@ -136,9 +138,9 @@ router.post('/projects/:projectId/sequences/reorder', async (req, res, next) => 
     const data = reorderSchema.parse(req.body);
 
     // Verify all sequences belong to this project
-    const placeholders = data.ids.map((_, i) => `$${i + 1}`).join(',');
+    const placeholders = data.ids.map(() => '?').join(',');
     const checkResult = await query(
-      `SELECT id FROM sequences WHERE id IN (${placeholders}) AND project_id = $${data.ids.length + 1}`,
+      `SELECT id FROM sequences WHERE id IN (${placeholders}) AND project_id = ?`,
       [...data.ids, projectId]
     );
 
@@ -149,14 +151,14 @@ router.post('/projects/:projectId/sequences/reorder', async (req, res, next) => 
     // Update step_order for each sequence
     for (let i = 0; i < data.ids.length; i++) {
       await query(
-        'UPDATE sequences SET step_order = $1 WHERE id = $2 AND project_id = $3',
+        'UPDATE sequences SET step_order = ? WHERE id = ? AND project_id = ?',
         [i + 1, data.ids[i], projectId]
       );
     }
 
     // Return updated sequences
     const result = await query(
-      'SELECT id, project_id, name, step_order, created_at FROM sequences WHERE project_id = $1 ORDER BY step_order',
+      'SELECT id, project_id, name, step_order, created_at FROM sequences WHERE project_id = ? ORDER BY step_order',
       [projectId]
     );
 

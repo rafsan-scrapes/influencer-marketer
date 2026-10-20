@@ -1,8 +1,10 @@
 // backend/src/index.js — Express app entry point
+import dotenv from 'dotenv';
+dotenv.config(); // Load env FIRST before other imports
+
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
 import sequenceRoutes from './routes/sequences.js';
@@ -13,8 +15,6 @@ import aiRoutes from './routes/ai.js';
 import generationRoutes from './routes/generation.js';
 import settingsRoutes from './routes/settings.js';
 import { authMiddleware } from './middleware/auth.js';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

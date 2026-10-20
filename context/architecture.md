@@ -24,11 +24,11 @@ influencer-marketer/
 │   │   ├── templates.js      # Shared: placeholder logic (extract, substitute, evaluate)
 │   │   └── utils.js          # Shared utilities (escapeHtml, date formatting)
 │   └── public/
-├── backend/                  # Express + pg
+├── backend/                  # Express + better-sqlite3
 │   ├── package.json
 │   ├── src/
 │   │   ├── index.js          # Express app setup, middleware, routes
-│   │   ├── db.js             # pg pool, migrations runner
+│   │   ├── db.js             # better-sqlite3 connection, migrations runner
 │   │   ├── migrations/       # SQL migration files (001_init.sql, etc.)
 │   │   ├── routes/
 │   │   │   ├── auth.js       # POST /auth/signup, /auth/login, /auth/me, /auth/logout
@@ -51,7 +51,6 @@ influencer-marketer/
 │   │       ├── errors.js
 │   │       └── validation.js
 │   └── Dockerfile
-├── railway.toml              # Railway service definitions
 ├── package.json              # Root workspace (optional)
 └── README.md
 ```
@@ -81,7 +80,7 @@ influencer-marketer/
 | Module | Responsibility |
 |---|---|
 | `index.js` | Express setup, CORS, JSON body parser, route mounting, error handler |
-| `db.js` | pg Pool, `query()` helper, migration runner (`npm run migrate`) |
+| `db.js` | better-sqlite3 connection, `query()` helper (prepare/all/get/run), migration runner (`npm run migrate`) |
 | `routes/auth.js` | `POST /auth/signup`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` |
 | `routes/projects.js` | `GET/POST/PATCH/DELETE /api/projects` (user-scoped) |
 | `routes/sequences.js` | `GET/POST/PATCH/DELETE /api/projects/:projectId/sequences`, reorder |
@@ -93,108 +92,113 @@ influencer-marketer/
 | `routes/settings.js` | `GET/PATCH /api/settings` (Gemini API key, default model, temperature) |
 | `services/templateEngine.js` | Condition evaluation, placeholder substitution (mirrors frontend `templates.js`) |
 | `services/gemini.js` | `generateContent({ model, temperature, systemPrompt, userPrompt, apiKey })` |
-| `services/csvImport.js` | Validate CSV headers, bulk insert contacts with `csv_data` JSONB |
-| `services/auth.js` | Password hashing (bcrypt), JWT sign/verify, API key encryption |
+| `services/csvImport.js` | Validate CSV headers, bulk insert contacts with `csv_data` JSON TEXT |
+| `services/auth.js` | Password hashing (bcrypt), JWT sign/verify, API key encryption (AES-256-GCM) |
 | `middleware/auth.js` | JWT verification, attaches `req.user` |
 | `utils/errors.js` | Custom error classes (NotFound, ValidationError, etc.) |
 | `utils/validation.js` | Zod schemas for request bodies |
 
-## Database Schema (PostgreSQL)
+## Database Schema (SQLite)
 
 ```sql
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- for gen_random_uuid, encryption
+-- SQLite schema for Influencer Marketer
+-- UUIDs generated in application (crypto.randomUUID())
+-- Timestamps stored as ISO8601 TEXT (e.g., 2026-10-20T12:34:56.789Z)
+-- JSON stored as TEXT (JSON.stringify/parse)
 
 -- Users
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(320) NOT NULL UNIQUE,
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- User Settings (Gemini API key, defaults)
 CREATE TABLE user_settings (
-    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    gemini_api_key_encrypted TEXT, -- encrypted with pgcrypto or app-level
-    default_ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-1.5-flash',
-    default_ai_temperature NUMERIC(3,2) NOT NULL DEFAULT 0.30,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    gemini_api_key_encrypted TEXT, -- encrypted with AES-256-GCM (app-level)
+    default_ai_model TEXT NOT NULL DEFAULT 'gemini-1.5-flash',
+    default_ai_temperature REAL NOT NULL DEFAULT 0.30,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Projects (user-scoped)
 CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Sequences (steps within a project)
 CREATE TABLE sequences (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL DEFAULT 'Sequence',
-    step_order INT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT 'Sequence',
+    step_order INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (project_id, step_order)
 );
 
 -- Templates (default + condition blocks per sequence)
 CREATE TABLE templates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    sequence_id UUID NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
-    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    id TEXT PRIMARY KEY,
+    sequence_id TEXT NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+    is_default INTEGER NOT NULL DEFAULT 0,
     subject TEXT NOT NULL DEFAULT '',
     body TEXT NOT NULL DEFAULT '',
     prompt TEXT NOT NULL DEFAULT '',
-    use_ai BOOLEAN NOT NULL DEFAULT TRUE,
-    ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-1.5-flash',
-    ai_temperature NUMERIC(3,2) NOT NULL DEFAULT 0.30,
-    subject_from_first_line BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (sequence_id, is_default) WHERE is_default = TRUE
+    use_ai INTEGER NOT NULL DEFAULT 1,
+    ai_model TEXT NOT NULL DEFAULT 'gemini-1.5-flash',
+    ai_temperature REAL NOT NULL DEFAULT 0.30,
+    subject_from_first_line INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Allow at most one default template per sequence
+CREATE UNIQUE INDEX idx_templates_one_default_per_sequence
+    ON templates (sequence_id)
+    WHERE is_default = 1;
 
 -- Conditions (AND-joined per template)
 CREATE TABLE conditions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    template_id UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
-    column_name VARCHAR(255) NOT NULL,
-    operator VARCHAR(20) NOT NULL CHECK (operator IN ('equals', 'contains', 'is_empty')),
+    id TEXT PRIMARY KEY,
+    template_id TEXT NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
+    column_name TEXT NOT NULL,
+    operator TEXT NOT NULL CHECK (operator IN ('equals', 'contains', 'is_empty')),
     value TEXT NOT NULL DEFAULT '',
-    condition_order INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    condition_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Contacts (from CSV import)
 CREATE TABLE contacts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    csv_row_index INT NOT NULL,
-    email VARCHAR(320) NOT NULL,
-    current_sequence_step INT NOT NULL DEFAULT 1,
-    csv_data JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    csv_row_index INTEGER NOT NULL,
+    email TEXT NOT NULL,
+    current_sequence_step INTEGER NOT NULL DEFAULT 1,
+    csv_data TEXT NOT NULL DEFAULT '{}', -- JSON string
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (project_id, csv_row_index)
 );
 
 -- Generated Emails (per contact per sequence)
 CREATE TABLE generated_emails (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
-    sequence_id UUID NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    sequence_id TEXT NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     subject TEXT NOT NULL DEFAULT '',
     body TEXT NOT NULL DEFAULT '',
-    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'generated', 'skipped', 'error')),
-    ai_used BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'generated', 'skipped', 'error')),
+    ai_used INTEGER NOT NULL DEFAULT 0,
     error_message TEXT,
-    generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    generated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Indexes for common queries
@@ -208,18 +212,29 @@ CREATE INDEX idx_generated_sequence ON generated_emails(sequence_id);
 CREATE INDEX idx_generated_status ON generated_emails(status);
 
 -- Trigger to auto-update updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+CREATE TRIGGER update_users_updated_at
+    AFTER UPDATE ON users
+    BEGIN
+        UPDATE users SET updated_at = datetime('now') WHERE id = NEW.id;
+    END;
 
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_user_settings_updated_at BEFORE UPDATE ON user_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_templates_updated_at BEFORE UPDATE ON templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_settings_updated_at
+    AFTER UPDATE ON user_settings
+    BEGIN
+        UPDATE user_settings SET updated_at = datetime('now') WHERE user_id = NEW.user_id;
+    END;
+
+CREATE TRIGGER update_projects_updated_at
+    AFTER UPDATE ON projects
+    BEGIN
+        UPDATE projects SET updated_at = datetime('now') WHERE id = NEW.id;
+    END;
+
+CREATE TRIGGER update_templates_updated_at
+    AFTER UPDATE ON templates
+    BEGIN
+        UPDATE templates SET updated_at = datetime('now') WHERE id = NEW.id;
+    END;
 ```
 
 ## API Contracts
@@ -354,41 +369,63 @@ buildPromptPayload(block, row) → { system, userContent, subject, body }
 
 ## Environment Variables
 
-### Backend (Railway)
+### Backend (Local)
 ```
-DATABASE_URL=postgresql://...          # Provided by Railway PostgreSQL (auto-injected)
-PORT=3000                              # Provided by Railway
-NODE_ENV=production
-FRONTEND_URL=https://your-app.railway.app  # For CORS
-JWT_SECRET=your-random-secret          # Set in Railway variables (32+ chars)
-ENCRYPTION_KEY=your-32-char-key        # For API key encryption (set in Railway)
+DB_PATH=./data/influencer_marketer.sqlite  # SQLite file path (local)
+PORT=3000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:5173  # For CORS
+JWT_SECRET=your-random-secret          # 32+ chars, generate with: openssl rand -base64 32
+ENCRYPTION_KEY=your-32-char-key        # For API key encryption (exactly 32 chars)
 ```
 - **No GEMINI_API_KEY in env** — entered per-user in Settings UI, stored encrypted in DB
 
 ### Frontend (Vite)
 ```
-VITE_API_URL=https://your-api.railway.app  # Backend URL
+VITE_API_URL=http://localhost:3000  # Backend URL
 ```
 
-## Deployment (Railway)
+## Local Development & Optional Docker
 
-### `railway.toml`
-```toml
-[build]
-builder = "docker"
+### Development (Standard)
+```bash
+# Terminal 1 - Backend
+cd backend && npm run dev
 
-[deploy]
-healthcheckPath = "/health"
-healthcheckTimeout = 30
-restartPolicyType = "on-failure"
+# Terminal 2 - Frontend
+cd frontend && npm run dev
+```
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3000
+- Health check: http://localhost:3000/health
 
-[[services]]
-name = "backend"
-dockerfilePath = "backend/Dockerfile"
+### Optional: Docker Compose for Local Production-like Run
+```yaml
+# docker-compose.yml (optional, for containerized local testing)
+version: '3.8'
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_PATH=/app/data/influencer_marketer.sqlite
+      - PORT=3000
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:80
+      - JWT_SECRET=${JWT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    volumes:
+      - ./backend/data:/app/data
 
-[[services]]
-name = "frontend"
-dockerfilePath = "frontend/Dockerfile"
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    depends_on:
+      - backend
 ```
 
 ### Backend Dockerfile
@@ -399,8 +436,25 @@ COPY backend/package*.json ./
 RUN npm ci --production
 COPY backend/src ./src
 COPY backend/migrations ./migrations
+RUN mkdir -p /app/data
 EXPOSE 3000
 CMD ["node", "src/index.js"]
+```
+
+### Frontend Dockerfile
+```dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
 ```
 
 ### Frontend Dockerfile
@@ -441,10 +495,10 @@ CMD ["nginx", "-g", "daemon off;"]
 
 - **Authentication**: Email/password with bcrypt hashing, JWT tokens in httpOnly cookies
 - **Authorization**: All API routes (except auth) require valid JWT; user-scoped queries
-- **API Key Storage**: Gemini API key encrypted at rest (pgcrypto or app-level AES-256)
-- **No .env secrets**: Railway provides `DATABASE_URL`; `JWT_SECRET` and `ENCRYPTION_KEY` set in Railway variables
+- **API Key Storage**: Gemini API key encrypted at rest (app-level AES-256-GCM)
+- **No .env secrets**: `JWT_SECRET` and `ENCRYPTION_KEY` in local `.env` file; DB is local SQLite file
 - **Gemini API key**: Never in env — entered per-user in Settings, stored encrypted in DB
-- **SQL injection**: Prevented via parameterized queries (pg)
+- **SQL injection**: Prevented via parameterized queries (better-sqlite3 prepared statements)
 - **Input validation**: Zod schemas on all POST/PATCH bodies
 - **CORS**: Restricted to `FRONTEND_URL` with credentials
 - **Rate limiting**: Consider adding for auth endpoints (future)
@@ -453,7 +507,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 - **Backend**: Unit tests for `templateEngine.js`, `gemini.js`, `auth.js`, route handlers (Vitest + Supertest)
 - **Frontend**: Unit tests for `templates.js` (shared logic), integration tests for UI modules (jsdom)
-- **E2E**: Manual verification per unit (user will test on Railway)
+- **E2E**: Manual verification per unit (user will test locally)
 
 ## Migration Strategy
 

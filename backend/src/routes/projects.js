@@ -1,6 +1,7 @@
 // backend/src/routes/projects.js — Project CRUD API
 import express from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { query } from '../db.js';
 
 const router = express.Router();
@@ -29,9 +30,11 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const data = createProjectSchema.parse(req.body);
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
     const result = await query(
-      'INSERT INTO projects (name) VALUES ($1) RETURNING id, name, created_at, updated_at',
-      [data.name]
+      'INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING id, name, created_at, updated_at',
+      [id, data.name, now, now]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -50,10 +53,9 @@ router.patch('/:id', async (req, res, next) => {
 
     const fields = [];
     const values = [];
-    let paramIndex = 1;
 
     if (data.name !== undefined) {
-      fields.push(`name = $${paramIndex++}`);
+      fields.push(`name = ?`);
       values.push(data.name);
     }
 
@@ -61,11 +63,12 @@ router.patch('/:id', async (req, res, next) => {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'No fields to update' } });
     }
 
-    fields.push(`updated_at = NOW()`);
+    fields.push(`updated_at = ?`);
+    values.push(new Date().toISOString());
     values.push(id);
 
     const result = await query(
-      `UPDATE projects SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING id, name, created_at, updated_at`,
+      `UPDATE projects SET ${fields.join(', ')} WHERE id = ? RETURNING id, name, created_at, updated_at`,
       values
     );
 
@@ -86,9 +89,9 @@ router.patch('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const result = await query('DELETE FROM projects WHERE id = $1 RETURNING id', [id]);
+    const result = await query('DELETE FROM projects WHERE id = ?', [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Project not found' } });
     }
 

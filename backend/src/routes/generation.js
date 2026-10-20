@@ -1,6 +1,7 @@
 // backend/src/routes/generation.js — Generation Pipeline API
 import express from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { query } from '../db.js';
 import { evaluateConditions, substitutePlaceholders, buildPromptPayload, splitFirstLine } from '../services/templateEngine.js';
 import { generateContent } from '../services/gemini.js';
@@ -27,10 +28,10 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
     }
 
     // Fetch contacts
-    const placeholders = data.contactIds.map((_, i) => `$${i + 1}`).join(',');
+    const placeholders = data.contactIds.map(() => '?').join(',');
     const contactsResult = await query(
       `SELECT id, project_id, csv_row_index, email, current_sequence_step, csv_data
-       FROM contacts WHERE id IN (${placeholders}) AND project_id = $${data.contactIds.length + 1}`,
+       FROM contacts WHERE id IN (${placeholders}) AND project_id = ?`,
       [...data.contactIds, projectId]
     );
 
@@ -45,7 +46,7 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
 
     // Fetch sequence
     const sequenceResult = await query(
-      'SELECT id, project_id, name, step_order FROM sequences WHERE id = $1 AND project_id = $2',
+      'SELECT id, project_id, name, step_order FROM sequences WHERE id = ? AND project_id = ?',
       [data.sequenceId, projectId]
     );
 
@@ -58,7 +59,7 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
     // Fetch templates for this sequence
     const templatesResult = await query(
       `SELECT id, sequence_id, is_default, subject, body, prompt, use_ai, ai_model, ai_temperature, subject_from_first_line
-       FROM templates WHERE sequence_id = $1 ORDER BY is_default DESC, created_at`,
+       FROM templates WHERE sequence_id = ? ORDER BY is_default DESC, created_at`,
       [sequence.id]
     );
 
@@ -70,7 +71,7 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
     const templates = [];
     for (const t of templatesResult.rows) {
       const conditionsResult = await query(
-        'SELECT id, template_id, column_name, operator, value, condition_order FROM conditions WHERE template_id = $1 ORDER BY condition_order',
+        'SELECT id, template_id, column_name, operator, value, condition_order FROM conditions WHERE template_id = ? ORDER BY condition_order',
         [t.id]
       );
       templates.push({
@@ -106,12 +107,13 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
         // Check if both empty (skip)
         if (subject.trim() === '' && body.trim() === '') {
           // Save as skipped
+          const id = crypto.randomUUID();
+          const now = new Date().toISOString();
           await query(
-            `INSERT INTO generated_emails (contact_id, sequence_id, subject, body, status, ai_used, error_message)
-             VALUES ($1, $2, $3, $4, 'skipped', FALSE, $5)
-             ON CONFLICT DO NOTHING
-             RETURNING id`,
-            [contact.id, sequence.id, subject, body, 'Subject and Body are both empty']
+            `INSERT INTO generated_emails (id, contact_id, sequence_id, subject, body, status, ai_used, error_message, generated_at)
+             VALUES (?, ?, ?, ?, 'skipped', 0, ?, ?)
+             ON CONFLICT DO NOTHING`,
+            [id, contact.id, sequence.id, subject, body, 'Subject and Body are both empty', now]
           );
 
           results.push({
@@ -161,11 +163,12 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
 
         // Save generated email
         const status = errorMessage ? 'error' : 'generated';
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
         await query(
-          `INSERT INTO generated_emails (contact_id, sequence_id, subject, body, status, ai_used, error_message)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING id`,
-          [contact.id, sequence.id, finalSubject, finalBody, status, aiUsed, errorMessage]
+          `INSERT INTO generated_emails (id, contact_id, sequence_id, subject, body, status, ai_used, error_message, generated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, contact.id, sequence.id, finalSubject, finalBody, status, aiUsed ? 1 : 0, errorMessage, now]
         );
 
         results.push({
@@ -178,11 +181,12 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
       } catch (err) {
         // Handle placeholder substitution errors or other errors
         const errorMessage = err.message;
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
         await query(
-          `INSERT INTO generated_emails (contact_id, sequence_id, subject, body, status, ai_used, error_message)
-           VALUES ($1, $2, $3, $4, 'error', FALSE, $5)
-           RETURNING id`,
-          [contact.id, sequence.id, '', '', errorMessage]
+          `INSERT INTO generated_emails (id, contact_id, sequence_id, subject, body, status, ai_used, error_message, generated_at)
+           VALUES (?, ?, ?, ?, 'error', 0, ?, ?)`,
+          [id, contact.id, sequence.id, '', '', errorMessage, now]
         );
 
         results.push({

@@ -19,20 +19,19 @@ router.get('/projects/:projectId/generated-emails', async (req, res, next) => {
     const { projectId } = req.params;
     const queryParams = listQuerySchema.parse(req.query);
 
-    let whereClause = 'WHERE c.project_id = $1';
+    let whereClause = 'WHERE c.project_id = ?';
     const values = [projectId];
-    let paramIndex = 2;
 
     if (queryParams.sequenceId) {
-      whereClause += ` AND ge.sequence_id = $${paramIndex++}`;
+      whereClause += ` AND ge.sequence_id = ?`;
       values.push(queryParams.sequenceId);
     }
     if (queryParams.status) {
-      whereClause += ` AND ge.status = $${paramIndex++}`;
+      whereClause += ` AND ge.status = ?`;
       values.push(queryParams.status);
     }
     if (queryParams.contactId) {
-      whereClause += ` AND ge.contact_id = $${paramIndex++}`;
+      whereClause += ` AND ge.contact_id = ?`;
       values.push(queryParams.contactId);
     }
 
@@ -47,7 +46,7 @@ router.get('/projects/:projectId/generated-emails', async (req, res, next) => {
        JOIN sequences s ON ge.sequence_id = s.id
        ${whereClause}
        ORDER BY ge.generated_at DESC
-       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+       LIMIT ? OFFSET ?`,
       values
     );
 
@@ -70,9 +69,9 @@ router.delete('/generated-emails/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const result = await query('DELETE FROM generated_emails WHERE id = $1 RETURNING id', [id]);
+    const result = await query('DELETE FROM generated_emails WHERE id = ?', [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Generated email not found' } });
     }
 

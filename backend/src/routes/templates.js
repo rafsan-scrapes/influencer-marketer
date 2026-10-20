@@ -1,6 +1,7 @@
 // backend/src/routes/templates.js — Template & Condition CRUD API
 import express from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { query } from '../db.js';
 
 const router = express.Router();
@@ -45,14 +46,14 @@ router.get('/sequences/:sequenceId/templates', async (req, res, next) => {
 
     const templatesResult = await query(
       `SELECT id, sequence_id, is_default, subject, body, prompt, use_ai, ai_model, ai_temperature, subject_from_first_line, created_at, updated_at
-       FROM templates WHERE sequence_id = $1 ORDER BY is_default DESC, created_at`,
+       FROM templates WHERE sequence_id = ? ORDER BY is_default DESC, created_at`,
       [sequenceId]
     );
 
     // Fetch conditions for each template
     for (const template of templatesResult.rows) {
       const conditionsResult = await query(
-        'SELECT id, template_id, column_name, operator, value, condition_order, created_at FROM conditions WHERE template_id = $1 ORDER BY condition_order',
+        'SELECT id, template_id, column_name, operator, value, condition_order, created_at FROM conditions WHERE template_id = ? ORDER BY condition_order',
         [template.id]
       );
       template.conditions = conditionsResult.rows;
@@ -73,7 +74,7 @@ router.post('/sequences/:sequenceId/templates', async (req, res, next) => {
     // If this is a default template, check if one already exists
     if (data.is_default) {
       const existing = await query(
-        'SELECT id FROM templates WHERE sequence_id = $1 AND is_default = TRUE',
+        'SELECT id FROM templates WHERE sequence_id = ? AND is_default = 1',
         [sequenceId]
       );
       if (existing.rows.length > 0) {
@@ -81,11 +82,13 @@ router.post('/sequences/:sequenceId/templates', async (req, res, next) => {
       }
     }
 
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
     const result = await query(
-      `INSERT INTO templates (sequence_id, is_default, subject, body, prompt, use_ai, ai_model, ai_temperature, subject_from_first_line)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO templates (id, sequence_id, is_default, subject, body, prompt, use_ai, ai_model, ai_temperature, subject_from_first_line, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id, sequence_id, is_default, subject, body, prompt, use_ai, ai_model, ai_temperature, subject_from_first_line, created_at, updated_at`,
-      [sequenceId, data.is_default, data.subject, data.body, data.prompt, data.use_ai, data.ai_model, data.ai_temperature, data.subject_from_first_line]
+      [id, sequenceId, data.is_default ? 1 : 0, data.subject, data.body, data.prompt, data.use_ai ? 1 : 0, data.ai_model, data.ai_temperature, data.subject_from_first_line ? 1 : 0, now, now]
     );
 
     const template = result.rows[0];
@@ -107,13 +110,12 @@ router.patch('/templates/:id', async (req, res, next) => {
 
     const fields = [];
     const values = [];
-    let paramIndex = 1;
 
     const allowedFields = ['subject', 'body', 'prompt', 'use_ai', 'ai_model', 'ai_temperature', 'subject_from_first_line'];
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
-        fields.push(`${field} = $${paramIndex++}`);
-        values.push(data[field]);
+        fields.push(`${field} = ?`);
+        values.push(data[field] === true ? 1 : data[field] === false ? 0 : data[field]);
       }
     }
 
@@ -121,11 +123,12 @@ router.patch('/templates/:id', async (req, res, next) => {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'No fields to update' } });
     }
 
-    fields.push(`updated_at = NOW()`);
+    fields.push(`updated_at = ?`);
+    values.push(new Date().toISOString());
     values.push(id);
 
     const result = await query(
-      `UPDATE templates SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING id, sequence_id, is_default, subject, body, prompt, use_ai, ai_model, ai_temperature, subject_from_first_line, created_at, updated_at`,
+      `UPDATE templates SET ${fields.join(', ')} WHERE id = ? RETURNING id, sequence_id, is_default, subject, body, prompt, use_ai, ai_model, ai_temperature, subject_from_first_line, created_at, updated_at`,
       values
     );
 
@@ -135,7 +138,7 @@ router.patch('/templates/:id', async (req, res, next) => {
 
     const template = result.rows[0];
     const conditionsResult = await query(
-      'SELECT id, template_id, column_name, operator, value, condition_order, created_at FROM conditions WHERE template_id = $1 ORDER BY condition_order',
+      'SELECT id, template_id, column_name, operator, value, condition_order, created_at FROM conditions WHERE template_id = ? ORDER BY condition_order',
       [template.id]
     );
     template.conditions = conditionsResult.rows;
@@ -155,7 +158,7 @@ router.delete('/templates/:id', async (req, res, next) => {
     const { id } = req.params;
 
     // Check if it's a default template
-    const template = await query('SELECT is_default FROM templates WHERE id = $1', [id]);
+    const template = await query('SELECT is_default FROM templates WHERE id = ?', [id]);
     if (template.rows.length === 0) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Template not found' } });
     }
@@ -164,7 +167,7 @@ router.delete('/templates/:id', async (req, res, next) => {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Cannot delete the default template' } });
     }
 
-    await query('DELETE FROM templates WHERE id = $1', [id]);
+    await query('DELETE FROM templates WHERE id = ?', [id]);
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -179,14 +182,16 @@ router.post('/templates/:templateId/conditions', async (req, res, next) => {
 
     // Get the next condition_order
     const maxOrderResult = await query(
-      'SELECT COALESCE(MAX(condition_order), 0) as max_order FROM conditions WHERE template_id = $1',
+      'SELECT COALESCE(MAX(condition_order), 0) as max_order FROM conditions WHERE template_id = ?',
       [templateId]
     );
     const nextOrder = parseInt(maxOrderResult.rows[0].max_order) + 1;
 
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
     const result = await query(
-      'INSERT INTO conditions (template_id, column_name, operator, value, condition_order) VALUES ($1, $2, $3, $4, $5) RETURNING id, template_id, column_name, operator, value, condition_order, created_at',
-      [templateId, data.column_name, data.operator, data.value, nextOrder]
+      'INSERT INTO conditions (id, template_id, column_name, operator, value, condition_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id, template_id, column_name, operator, value, condition_order, created_at',
+      [id, templateId, data.column_name, data.operator, data.value, nextOrder, now]
     );
 
     res.status(201).json(result.rows[0]);
@@ -206,12 +211,11 @@ router.patch('/conditions/:id', async (req, res, next) => {
 
     const fields = [];
     const values = [];
-    let paramIndex = 1;
 
     const allowedFields = ['column_name', 'operator', 'value'];
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
-        fields.push(`${field} = $${paramIndex++}`);
+        fields.push(`${field} = ?`);
         values.push(data[field]);
       }
     }
@@ -223,7 +227,7 @@ router.patch('/conditions/:id', async (req, res, next) => {
     values.push(id);
 
     const result = await query(
-      `UPDATE conditions SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING id, template_id, column_name, operator, value, condition_order, created_at`,
+      `UPDATE conditions SET ${fields.join(', ')} WHERE id = ? RETURNING id, template_id, column_name, operator, value, condition_order, created_at`,
       values
     );
 
@@ -245,9 +249,9 @@ router.delete('/conditions/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const result = await query('DELETE FROM conditions WHERE id = $1 RETURNING id', [id]);
+    const result = await query('DELETE FROM conditions WHERE id = ?', [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Condition not found' } });
     }
 
