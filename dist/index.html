@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Influencer Marketer</title>
+    <script type="module" crossorigin src="/assets/index-BKF6dFqY.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-N_TzVbx8.css">
+  </head>
+  <body class="bg-slate-100 text-slate-900">
+    <div id="app" class="mx-auto max-w-5xl p-6">
+      <header class="mb-6">
+        <h1 class="text-2xl font-bold">Influencer Marketer</h1>
+        <p class="text-sm text-slate-600">Phase 1 — Brand outreach generator</p>
+      </header>
+
+      <nav class="mb-4 flex gap-2" role="tablist" aria-label="Main tabs">
+        <button data-tab="ai-config" role="tab" class="tab-btn rounded px-4 py-2 font-medium">AI Config</button>
+        <button data-tab="email-template" role="tab" class="tab-btn rounded px-4 py-2 font-medium">Email Template</button>
+        <button data-tab="brands" role="tab" class="tab-btn rounded px-4 py-2 font-medium">Brands</button>
+        <button data-tab="runs" role="tab" class="tab-btn rounded px-4 py-2 font-medium">Runs</button>
+        <button
+          data-tab="influencers"
+          role="tab"
+          disabled
+          aria-disabled="true"
+          title="Phase 2 — coming soon"
+          class="cursor-not-allowed rounded bg-slate-200 px-4 py-2 font-medium text-slate-400"
+        >
+          Influencers
+        </button>
+      </nav>
+
+      <main>
+        <section id="panel-ai-config" role="tabpanel" class="tab-panel rounded bg-white p-6 shadow">
+          <h2 class="mb-4 text-lg font-semibold">AI Config</h2>
+          <form id="ai-config-form" class="max-w-md space-y-4" autocomplete="off">
+            <div>
+              <label for="cfg-key" class="mb-1 block text-sm font-medium">API key</label>
+              <input
+                id="cfg-key"
+                type="password"
+                autocomplete="new-password"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Bynara API key (sk-nry-…)"
+              />
+            </div>
+            <div>
+              <label for="cfg-model" class="mb-1 block text-sm font-medium">Model</label>
+              <input
+                id="cfg-model"
+                type="text"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                placeholder="e.g. deepseek-v4-flash (see Bynara docs)"
+              />
+            </div>
+            <div>
+              <label for="cfg-endpoint" class="mb-1 block text-sm font-medium">Endpoint</label>
+              <input
+                id="cfg-endpoint"
+                type="text"
+                inputmode="url"
+                class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              />
+              <p class="mt-1 text-xs text-slate-500">Bynara router base URL (default <code>https://router.bynara.id/v1</code>). In dev, use <code>/bynara-api</code> to go through the Vite proxy and avoid CORS blocks.</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <button
+                id="cfg-test"
+                type="button"
+                class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              >
+                Test Connection
+              </button>
+              <span id="cfg-status" role="status" class="text-sm text-slate-600"></span>
+            </div>
+          </form>
+        </section>
+        <section id="panel-email-template" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
+          <h2 class="mb-2 text-lg font-semibold">Email Template</h2>
+          <div id="template-chips" class="mb-4 flex flex-wrap gap-2">
+            <p class="text-sm text-slate-500">Upload a CSV on the Brands tab to see column chips.</p>
+          </div>
+          <div class="mb-4 rounded border border-slate-300 p-4">
+            <h3 class="mb-2 text-sm font-semibold">Default</h3>
+            <div class="space-y-2">
+              <input id="tpl-def-subject" type="text" placeholder="Subject" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm" />
+              <textarea id="tpl-def-body" placeholder="Body" rows="4" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm"></textarea>
+              <textarea id="tpl-def-prompt" placeholder="Prompt (optional)" rows="2" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm"></textarea>
+              <label class="flex items-center gap-2 text-xs text-slate-600">
+                <input id="tpl-def-split" type="checkbox" />
+                AI returns final subject on first line (split into Subject + Body)
+              </label>
+            </div>
+          </div>
+          <div id="template-conditions" class="space-y-4"></div>
+          <button id="template-add-condition" type="button" class="mt-4 rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
+            Add condition
+          </button>
+        </section>
+        <section id="panel-brands" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
+          <h2 class="mb-4 text-lg font-semibold">Brands</h2>
+          <div class="mb-2 flex flex-wrap items-center gap-3">
+            <label for="brands-file" class="cursor-pointer rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
+              Upload CSV
+            </label>
+            <input id="brands-file" type="file" accept=".csv,text/csv" class="hidden" />
+            <button id="brands-select-all" type="button" class="rounded border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100">
+              Select All
+            </button>
+            <button id="brands-deselect-all" type="button" class="rounded border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100">
+              Deselect All
+            </button>
+            <button id="brands-run" type="button" class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
+              Run
+            </button>
+            <button id="brands-run-noai" type="button" title="Fill placeholders only — no AI call, faster" class="rounded border border-slate-900 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40">
+              Run without AI
+            </button>
+            <span id="brands-status" role="status" class="text-sm text-slate-600"></span>
+            <span id="brands-run-status" role="status" class="text-sm text-slate-600"></span>
+          </div>
+          <div id="brands-table" class="mt-4">
+            <p class="text-sm text-slate-500">No CSV loaded yet.</p>
+          </div>
+        </section>
+        <section id="panel-runs" role="tabpanel" class="tab-panel hidden rounded bg-white p-6 shadow">
+          <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-lg font-semibold">Runs</h2>
+            <button id="runs-clear" type="button" class="rounded border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100">
+              Clear All Runs
+            </button>
+          </div>
+          <div id="runs-list" class="space-y-4">
+            <p class="text-sm text-slate-500">No runs yet. Select rows on the Brands tab and press Run.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
