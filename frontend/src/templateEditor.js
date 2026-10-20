@@ -1,256 +1,453 @@
-// src/templateEditor.js — Email Template tab UI. Owns the panel DOM only.
-// Template state lives in store.js ("templates"); CSV headers come from
-// store.js ("brands") plus `im:headers-changed` events from brands.js.
+// frontend/src/templateEditor.js — Template editor per sequence (default + conditions + AI config)
 
-import { store } from "./store.js";
-import { escapeHtml } from "./brands.js";
+import { api } from './api.js';
+import { sequences } from './sequences.js';
+import { projects } from './projects.js';
+import { auth } from './auth.js';
+import { showToast, showConfirm, escapeHtml, debounce } from './utils.js';
 
-export const OPS = ["equals", "contains", "isEmpty"];
+let currentSequenceId = null;
+let templates = [];
+let columnHeaders = [];
+let listeners = [];
 
-let lastFocused = null;
-let idCounter = 0;
-
-export function createConditionBlock() {
-  idCounter += 1;
-  return {
-    id: `c${Date.now().toString(36)}${idCounter}`,
-    conditions: [{ column: "", op: "equals", value: "" }],
-    subject: "",
-    body: "",
-    prompt: "",
-    subjectFromFirstLine: false
-  };
+function getTemplates() {
+  return templates;
 }
 
-// Pure helper (unit-tested): reorder a block id by dir (-1 up, +1 down).
-export function moveBlockId(ids, id, dir) {
-  const i = ids.indexOf(id);
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= ids.length) return ids.slice();
-  const next = ids.slice();
-  [next[i], next[j]] = [next[j], next[i]];
-  return next;
+function getCurrentSequenceId() {
+  return currentSequenceId;
 }
 
-function getState() {
-  return store.getTemplates();
+function setColumnHeaders(headers) {
+  columnHeaders = headers;
+  renderColumnChips();
 }
 
-function els() {
-  return {
-    panel: document.getElementById("panel-email-template"),
-    chips: document.getElementById("template-chips"),
-    defSubject: document.getElementById("tpl-def-subject"),
-    defBody: document.getElementById("tpl-def-body"),
-    defPrompt: document.getElementById("tpl-def-prompt"),
-    conditions: document.getElementById("template-conditions"),
-    addBtn: document.getElementById("template-add-condition")
-  };
+function subscribe(listener) {
+  listeners.push(listener);
+  return () => { listeners = listeners.filter(l => l !== listener); };
 }
 
-export function renderChips(headers) {
-  const { chips } = els();
-  if (!chips) return;
-  if (!headers || headers.length === 0) {
-    chips.innerHTML = '<p class="text-sm text-slate-500">Upload a CSV on the Brands tab to see column chips.</p>';
+function notify() {
+  listeners.forEach(l => l(templates, currentSequenceId));
+}
+
+async function loadTemplates(sequenceId) {
+  currentSequenceId = sequenceId;
+  if (!sequenceId) {
+    templates = [];
+    notify();
     return;
   }
-  chips.innerHTML = headers
-    .map(
-      (h) =>
-        `<button type="button" data-chip="${escapeHtml(h)}" title="Insert [${escapeHtml(h)}]" ` +
-        `class="rounded-full bg-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-300">${escapeHtml(h)}</button>`
-    )
-    .join("");
+  try {
+    templates = await api.listTemplates(sequenceId);
+    notify();
+  } catch (err) {
+    console.error('Failed to load templates:', err);
+    showToast('Failed to load templates', 'error');
+  }
 }
 
-function conditionRowHtml(row, headers) {
-  const colSelect =
-    headers.length > 0
-      ? `<select data-field="column" class="rounded border border-slate-300 px-2 py-1 text-sm">` +
-        `<option value="">— column —</option>` +
-        headers.map((h) => `<option value="${escapeHtml(h)}"${h === row.column ? " selected" : ""}>${escapeHtml(h)}</option>`).join("") +
-        `</select>`
-      : `<input data-field="column" type="text" value="${escapeHtml(row.column)}" placeholder="Column" class="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />`;
-  return (
-    `<div class="flex items-center gap-2" data-cond-row>` +
-    colSelect +
-    `<select data-field="op" class="rounded border border-slate-300 px-2 py-1 text-sm">` +
-    OPS.map((op) => `<option value="${op}"${op === row.op ? " selected" : ""}>${op}</option>`).join("") +
-    `</select>` +
-    `<input data-field="value" type="text" value="${escapeHtml(row.value)}" placeholder="value" ` +
-    `class="flex-1 rounded border border-slate-300 px-2 py-1 text-sm"${row.op === "isEmpty" ? " disabled" : ""} />` +
-    `<button type="button" data-action="del-row" class="rounded px-2 py-1 text-sm text-red-600 hover:bg-red-50" title="Remove condition">✕</button>` +
-    `</div>`
-  );
+async function saveTemplate(template) {
+  const isNew = !template.id || template.id.startsWith('temp-');
+  if (isNew) {
+    const created = await api.createTemplate(currentSequenceId, template);
+    const idx = templates.findIndex(t => t.id === template.id);
+    if (idx >= 0) templates[idx] = created;
+  } else {
+    const updated = await api.updateTemplate(template.id, template);
+    const idx = templates.findIndex(t => t.id === template.id);
+    if (idx >= 0) templates[idx] = updated;
+  }
+  notify();
 }
 
-function blockHtml(block, headers, isFirst, isLast) {
-  const rows = block.conditions
-    .map(
-      (row, i) =>
-        (i > 0 ? '<div class="text-xs font-bold text-slate-400">AND</div>' : "") + conditionRowHtml(row, headers)
-    )
-    .join("");
-  return (
-    `<div class="rounded border border-slate-300 p-4" data-block-id="${escapeHtml(block.id)}">` +
-    `<div class="mb-2 flex items-center justify-between">` +
-    `<span class="text-sm font-semibold">If condition</span>` +
-    `<span class="flex gap-1">` +
-    `<button type="button" data-action="move-up"${isFirst ? " disabled" : ""} class="rounded px-2 py-1 text-sm hover:bg-slate-100 disabled:opacity-30" title="Move up">↑</button>` +
-    `<button type="button" data-action="move-down"${isLast ? " disabled" : ""} class="rounded px-2 py-1 text-sm hover:bg-slate-100 disabled:opacity-30" title="Move down">↓</button>` +
-    `<button type="button" data-action="del-block" class="rounded px-2 py-1 text-sm text-red-600 hover:bg-red-50" title="Delete block">Delete</button>` +
-    `</span></div>` +
-    `<div class="space-y-2" data-cond-rows>${rows}</div>` +
-    `<button type="button" data-action="add-row" class="mt-2 rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100">+ AND condition</button>` +
-    `<div class="mt-3 space-y-2">` +
-    `<input data-field="subject" type="text" value="${escapeHtml(block.subject)}" placeholder="Subject" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm" />` +
-    `<textarea data-field="body" placeholder="Body" rows="3" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm">${escapeHtml(block.body)}</textarea>` +
-    `<textarea data-field="prompt" placeholder="Prompt (optional)" rows="2" class="tpl-target w-full rounded border border-slate-300 px-3 py-2 text-sm">${escapeHtml(block.prompt)}</textarea>` +
-    `<label class="flex items-center gap-2 text-xs text-slate-600">` +
-    `<input data-field="subjectFromFirstLine" type="checkbox"${block.subjectFromFirstLine ? " checked" : ""} />` +
-    `AI returns final subject on first line (split into Subject + Body)` +
-    `</label>` +
-    `</div></div>`
-  );
+async function deleteTemplate(id) {
+  if (await showConfirm('Delete Template', 'Delete this template block?')) {
+    await api.deleteTemplate(id);
+    templates = templates.filter(t => t.id !== id);
+    notify();
+    showToast('Template deleted', 'success');
+  }
 }
 
-export function renderConditions() {
-  const { conditions } = els();
-  if (!conditions) return;
-  const state = getState();
-  const headers = store.getBrands().headers;
-  conditions.innerHTML = state.conditions
-    .map((b, i) => blockHtml(b, headers, i === 0, i === state.conditions.length - 1))
-    .join("");
+async function addCondition(templateId, condition) {
+  const created = await api.addCondition(templateId, condition);
+  const template = templates.find(t => t.id === templateId);
+  if (template) {
+    template.conditions = [...(template.conditions || []), created];
+    notify();
+  }
 }
 
-function readStateFromDom() {
-  const { defSubject, defBody, defPrompt, conditions } = els();
-  const blocks = [...(conditions ? conditions.querySelectorAll("[data-block-id]") : [])].map((el) => {
-    const condRows = [...el.querySelectorAll("[data-cond-row]")].map((r) => ({
-      column: r.querySelector('[data-field="column"]').value,
-      op: r.querySelector('[data-field="op"]').value,
-      value: r.querySelector('[data-field="value"]').value
-    }));
-    return {
-      id: el.getAttribute("data-block-id"),
-      conditions: condRows,
-      subject: el.querySelector('[data-field="subject"]').value,
-      body: el.querySelector('[data-field="body"]').value,
-      prompt: el.querySelector('[data-field="prompt"]').value,
-      subjectFromFirstLine: el.querySelector('[data-field="subjectFromFirstLine"]').checked
+async function updateCondition(id, condition) {
+  const updated = await api.updateCondition(id, condition);
+  for (const template of templates) {
+    const idx = template.conditions?.findIndex(c => c.id === id);
+    if (idx >= 0) {
+      template.conditions[idx] = updated;
+      notify();
+      break;
+    }
+  }
+}
+
+async function deleteCondition(id) {
+  if (await showConfirm('Delete Condition', 'Delete this condition?')) {
+    await api.deleteCondition(id);
+    for (const template of templates) {
+      template.conditions = template.conditions?.filter(c => c.id !== id) || [];
+    }
+    notify();
+    showToast('Condition deleted', 'success');
+  }
+}
+
+// UI
+export function initTemplateEditorUI() {
+  subscribeSequences(() => {
+    if (currentSequenceId && !getSequences().find(s => s.id === currentSequenceId)) {
+      loadTemplates(null);
+    }
+  });
+}
+
+export function renderTemplateEditor(container) {
+  const sequence = getSequences().find(s => s.id === currentSequenceId);
+  const projectId = getCurrentProjectId();
+
+  if (!sequence || !projectId) {
+    container.innerHTML = '<p class="text-slate-500 py-8 text-center">Select a sequence to configure templates.</p>';
+    return;
+  }
+
+  const defaultBlock = templates.find(t => t.is_default);
+  const conditionBlocks = templates.filter(t => !t.is_default);
+
+  container.innerHTML = `
+    <div class="space-y-6">
+      <!-- Sequence selector (tabs) -->
+      <div class="border-b border-slate-200">
+        <nav class="flex gap-1 overflow-x-auto pb-px" role="tablist" aria-label="Sequences">
+          ${getSequences().map(s => `
+            <button data-seq-tab="${escapeHtml(s.id)}" role="tab" aria-selected="${s.id === currentSequenceId}" class="whitespace-nowrap px-3 py-2 text-sm font-medium rounded-t-lg transition-colors ${s.id === currentSequenceId ? 'bg-white text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}">
+              ${escapeHtml(s.name)}
+            </button>
+          `).join('')}
+        </nav>
+      </div>
+
+      <!-- Column chips -->
+      <div id="template-chips" class="flex flex-wrap gap-2 min-h-[36px]">
+        ${columnHeaders.length === 0 ? '<p class="text-sm text-slate-500">Upload a CSV on the Contacts tab to see column chips.</p>' : ''}
+        ${columnHeaders.map(h => `<span class="chip px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded border border-slate-200 cursor-pointer hover:bg-indigo-50 hover:border-indigo-200" data-chip="${escapeHtml(h)}">[${escapeHtml(h)}]</span>`).join('')}
+      </div>
+
+      <!-- Default Block -->
+      <div class="bg-white rounded-lg border border-slate-200 p-4 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="font-semibold text-slate-900">Default Template</h3>
+          <span class="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded">Default</span>
+        </div>
+        ${renderTemplateBlock(defaultBlock, true)}
+      </div>
+
+      <!-- Condition Blocks -->
+      <div id="condition-blocks" class="space-y-4">
+        ${conditionBlocks.map((block, idx) => renderConditionBlock(block, idx)).join('')}
+      </div>
+
+      <!-- Add Condition Block -->
+      <button id="add-condition-block" type="button" class="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 py-4 text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Condition Block
+      </button>
+    </div>
+  `;
+
+  attachTemplateEditorEvents(container);
+  renderColumnChips();
+}
+
+function renderTemplateBlock(block, isDefault) {
+  const settings = auth.getSettings() || { default_ai_model: 'gemini-1.5-flash', default_ai_temperature: 0.3 };
+  const models = ['gemini-1.5-flash', 'gemini-1.5-pro'];
+  
+  return `
+    <div class="template-block space-y-4" data-template-id="${escapeHtml(block?.id || '')}" data-is-default="${isDefault}">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Subject</label>
+          <input type="text" name="subject" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none" placeholder="Subject line" value="${escapeHtml(block?.subject || '')}" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">AI Model</label>
+          <select name="ai_model" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none">
+            ${models.map(m => `<option value="${m}" ${block?.ai_model === m ? 'selected' : ''}>${m}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Body</label>
+        <textarea name="body" rows="4" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none font-mono text-sm" placeholder="Email body...">${escapeHtml(block?.body || '')}</textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Prompt (for AI)</label>
+        <textarea name="prompt" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none font-mono text-sm" placeholder="AI instructions...">${escapeHtml(block?.prompt || '')}</textarea>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Temperature</label>
+          <input type="range" name="ai_temperature" min="0" max="1" step="0.1" value="${block?.ai_temperature ?? settings.default_ai_temperature ?? 0.3}" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+          <div class="flex justify-between text-xs text-slate-500 mt-1">
+            <span>0.0</span>
+            <span id="temp-value-${block?.id || 'default'}">${block?.ai_temperature ?? settings.default_ai_temperature ?? 0.3}</span>
+            <span>1.0</span>
+          </div>
+        </div>
+        <div class="flex items-end">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="use_ai" ${block?.use_ai ? 'checked' : ''} class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500" />
+            <span class="text-sm text-slate-700">Use AI</span>
+          </label>
+        </div>
+        <div class="flex items-end">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="subject_from_first_line" ${block?.subject_from_first_line ? 'checked' : ''} class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500" />
+            <span class="text-sm text-slate-700">Split first line as Subject</span>
+          </label>
+        </div>
+      </div>
+      ${!isDefault ? `
+        <div class="pt-2 border-t border-slate-200">
+          <button type="button" data-delete-template="${escapeHtml(block?.id || '')}" class="text-sm text-red-600 hover:text-red-700">Delete this block</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderConditionBlock(block, idx) {
+  const conditions = block.conditions || [];
+  
+  return `
+    <div class="condition-block bg-white rounded-lg border border-slate-200 p-4 space-y-4" data-template-id="${escapeHtml(block.id)}">
+      <div class="flex items-center justify-between">
+        <h4 class="font-semibold text-slate-900">Condition Block ${idx + 1}</h4>
+        <button type="button" data-delete-template="${escapeHtml(block.id)}" class="text-sm text-red-600 hover:text-red-700">Delete</button>
+      </div>
+      
+      <!-- Conditions (AND-joined) -->
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Conditions (ALL must match)</label>
+        <div id="conditions-${block.id}" class="space-y-2">
+          ${conditions.map((c, ci) => renderConditionRow(block.id, c, ci)).join('')}
+        </div>
+        <button type="button" data-add-condition="${escapeHtml(block.id)}" class="text-sm text-indigo-600 hover:text-indigo-700">+ Add Condition</button>
+      </div>
+
+      <!-- Template content -->
+      ${renderTemplateBlock(block, false)}
+    </div>
+  `;
+}
+
+function renderConditionRow(templateId, condition, idx) {
+  return `
+    <div class="flex items-center gap-2 condition-row" data-condition-id="${escapeHtml(condition.id)}" data-template-id="${escapeHtml(templateId)}">
+      <select name="column_name" class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none">
+        <option value="">Select column</option>
+        ${columnHeaders.map(h => `<option value="${escapeHtml(h)}" ${condition.column_name === h ? 'selected' : ''}>${escapeHtml(h)}</option>`).join('')}
+      </select>
+      <select name="operator" class="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none">
+        <option value="equals" ${condition.operator === 'equals' ? 'selected' : ''}>=</option>
+        <option value="contains" ${condition.operator === 'contains' ? 'selected' : ''}>contains</option>
+        <option value="is_empty" ${condition.operator === 'is_empty' ? 'selected' : ''}>is empty</option>
+      </select>
+      <input type="text" name="value" class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none" placeholder="Value" value="${escapeHtml(condition.value || '')}" ${condition.operator === 'is_empty' ? 'disabled' : ''} />
+      <button type="button" data-delete-condition="${escapeHtml(condition.id)}" class="p-2 text-slate-400 hover:text-red-600" title="Delete"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+  `;
+}
+
+function attachTemplateEditorEvents(container) {
+  // Sequence tabs
+  container.querySelectorAll('[data-seq-tab]').forEach(btn => {
+    btn.addEventListener('click', () => loadTemplates(btn.dataset.seqTab));
+  });
+
+  // Add condition block
+  container.querySelector('#add-condition-block')?.addEventListener('click', async () => {
+    const name = prompt('Condition block name (optional):');
+    const block = {
+      is_default: false,
+      subject: '',
+      body: '',
+      prompt: '',
+      use_ai: true,
+      ai_model: 'gemini-1.5-flash',
+      ai_temperature: 0.3,
+      subject_from_first_line: false,
     };
-  });
-  return {
-    default: {
-      subject: defSubject ? defSubject.value : "",
-      body: defBody ? defBody.value : "",
-      prompt: defPrompt ? defPrompt.value : "",
-      subjectFromFirstLine: !!document.getElementById("tpl-def-split")?.checked
-    },
-    conditions: blocks
-  };
-}
-
-export function persistFromDom() {
-  store.setTemplates(readStateFromDom());
-}
-
-function insertAtCursor(input, text) {
-  const start = input.selectionStart == null ? input.value.length : input.selectionStart;
-  const end = input.selectionEnd == null ? input.value.length : input.selectionEnd;
-  input.value = input.value.slice(0, start) + text + input.value.slice(end);
-  const pos = start + text.length;
-  input.setSelectionRange(pos, pos);
-  input.focus();
-}
-
-export function initTemplateEditor() {
-  const { panel, chips, defSubject, defBody, defPrompt, conditions, addBtn } = els();
-  if (!panel || !defSubject || !conditions) return;
-  lastFocused = null;
-
-  // Restore persisted state.
-  const state = getState();
-  defSubject.value = state.default.subject;
-  defBody.value = state.default.body;
-  defPrompt.value = state.default.prompt;
-  const defSplit = document.getElementById("tpl-def-split");
-  if (defSplit) defSplit.checked = state.default.subjectFromFirstLine === true;
-  renderConditions();
-  renderChips(store.getBrands().headers);
-
-  panel.addEventListener("focusin", (e) => {
-    if (e.target && e.target.classList && e.target.classList.contains("tpl-target")) {
-      lastFocused = e.target;
+    try {
+      const created = await api.createTemplate(currentSequenceId, block);
+      templates.push(created);
+      notify();
+      showToast('Condition block added', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   });
 
-  panel.addEventListener("input", (e) => {
-    if (e.target && e.target.closest && e.target.closest("#panel-email-template")) persistFromDom();
-  });
-  panel.addEventListener("change", (e) => {
-    const t = e.target;
-    if (!t || !t.closest || !t.closest("#panel-email-template")) return;
-    // Toggling the value box for isEmpty needs no re-render.
-    if (t.getAttribute("data-field") === "op") {
-      const row = t.closest("[data-cond-row]");
-      const val = row && row.querySelector('[data-field="value"]');
-      if (val) val.disabled = t.value === "isEmpty";
-    }
-    persistFromDom();
-  });
-
-  if (chips) {
-    chips.addEventListener("click", (e) => {
-      const btn = e.target && e.target.closest ? e.target.closest("[data-chip]") : null;
-      if (!btn) return;
-      const target = lastFocused && document.contains(lastFocused) ? lastFocused : defSubject;
-      insertAtCursor(target, `[${btn.getAttribute("data-chip")}]`);
-      persistFromDom();
-    });
-  }
-
-  if (addBtn) {
-    addBtn.addEventListener("click", () => {
-      const s = getState();
-      s.conditions.push(createConditionBlock());
-      store.setTemplates(s);
-      renderConditions();
-    });
-  }
-
-  conditions.addEventListener("click", (e) => {
-    const btn = e.target && e.target.closest ? e.target.closest("[data-action]") : null;
-    if (!btn) return;
-    const blockEl = btn.closest("[data-block-id]");
-    const id = blockEl ? blockEl.getAttribute("data-block-id") : null;
-    // Text state is always current in the store (persisted on every input/
-    // change event), so structural edits can go store -> mutate -> re-render.
-    const s = getState();
-    const action = btn.getAttribute("data-action");
-    if (action === "del-block") {
-      s.conditions = s.conditions.filter((b) => b.id !== id);
-    } else if (action === "move-up" || action === "move-down") {
-      const order = moveBlockId(s.conditions.map((b) => b.id), id, action === "move-up" ? -1 : 1);
-      s.conditions.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-    } else if (action === "add-row") {
-      const b = s.conditions.find((x) => x.id === id);
-      if (b) b.conditions.push({ column: "", op: "equals", value: "" });
-    } else if (action === "del-row") {
-      const b = s.conditions.find((x) => x.id === id);
-      if (b && b.conditions.length > 1) {
-        const rows = [...blockEl.querySelectorAll("[data-cond-row]")];
-        b.conditions.splice(rows.indexOf(btn.closest("[data-cond-row]")), 1);
+  // Template block events (save on change, delete)
+  container.querySelectorAll('.template-block').forEach(blockEl => {
+    const templateId = blockEl.dataset.templateId;
+    const isDefault = blockEl.dataset.isDefault === 'true';
+    
+    // Debounced save
+    const save = debounce(async () => {
+      const data = {
+        subject: blockEl.querySelector('[name="subject"]')?.value || '',
+        body: blockEl.querySelector('[name="body"]')?.value || '',
+        prompt: blockEl.querySelector('[name="prompt"]')?.value || '',
+        use_ai: blockEl.querySelector('[name="use_ai"]')?.checked ?? true,
+        ai_model: blockEl.querySelector('[name="ai_model"]')?.value || 'gemini-1.5-flash',
+        ai_temperature: parseFloat(blockEl.querySelector('[name="ai_temperature"]')?.value || '0.3'),
+        subject_from_first_line: blockEl.querySelector('[name="subject_from_first_line"]')?.checked ?? false,
+      };
+      try {
+        await saveTemplate({ id: templateId, ...data });
+      } catch (err) {
+        showToast(err.message, 'error');
       }
-    }
-    store.setTemplates(s);
-    renderConditions();
+    }, 500);
+
+    blockEl.querySelectorAll('input, select, textarea').forEach(el => {
+      el.addEventListener('input', save);
+      el.addEventListener('change', save);
+    });
+
+    // Temperature display update
+    const tempInput = blockEl.querySelector('[name="ai_temperature"]');
+    const tempValue = blockEl.querySelector(`#temp-value-${templateId}`);
+    tempInput?.addEventListener('input', () => {
+      if (tempValue) tempValue.textContent = tempInput.value;
+    });
+
+    // Delete template
+    blockEl.querySelector('[data-delete-template]')?.addEventListener('click', () => deleteTemplate(templateId));
   });
 
-  window.addEventListener("im:headers-changed", (e) => {
-    renderChips(e.detail ? e.detail.headers : []);
-    renderConditions();
+  // Condition rows
+  container.querySelectorAll('.condition-row').forEach(row => {
+    const templateId = row.dataset.templateId;
+    const conditionId = row.dataset.conditionId;
+
+    // Save condition on change
+    const saveCondition = debounce(async () => {
+      const data = {
+        column_name: row.querySelector('[name="column_name"]')?.value || '',
+        operator: row.querySelector('[name="operator"]')?.value || 'equals',
+        value: row.querySelector('[name="value"]')?.value || '',
+      };
+      if (!data.column_name) return;
+      try {
+        await updateCondition(conditionId, data);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }, 500);
+
+    row.querySelectorAll('select, input').forEach(el => {
+      el.addEventListener('change', saveCondition);
+      el.addEventListener('input', saveCondition);
+    });
+
+    // Disable value for is_empty
+    const operatorSelect = row.querySelector('[name="operator"]');
+    const valueInput = row.querySelector('[name="value"]');
+    operatorSelect?.addEventListener('change', () => {
+      valueInput.disabled = operatorSelect.value === 'is_empty';
+    });
+
+    // Delete condition
+    row.querySelector('[data-delete-condition]')?.addEventListener('click', () => deleteCondition(conditionId));
+  });
+
+  // Add condition
+  container.querySelectorAll('[data-add-condition]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const templateId = btn.dataset.addCondition;
+      try {
+        const created = await api.addCondition(templateId, {
+          column_name: '',
+          operator: 'equals',
+          value: '',
+        });
+        // Re-render to show new condition
+        renderTemplateEditor(document.getElementById('app-content'));
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  // Column chips - insert at cursor
+  container.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const placeholder = `[${chip.dataset.chip}]`;
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
+        const start = activeEl.selectionStart;
+        const end = activeEl.selectionEnd;
+        const val = activeEl.value;
+        activeEl.value = val.slice(0, start) + placeholder + val.slice(end);
+        activeEl.focus();
+        activeEl.dispatchEvent(new Event('input'));
+      }
+    });
   });
 }
+
+function renderColumnChips() {
+  const chipsContainer = document.getElementById('template-chips');
+  if (!chipsContainer) return;
+  if (columnHeaders.length === 0) {
+    chipsContainer.innerHTML = '<p class="text-sm text-slate-500">Upload a CSV on the Contacts tab to see column chips.</p>';
+    return;
+  }
+  chipsContainer.innerHTML = columnHeaders.map(h => `
+    <span class="chip px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded border border-slate-200 cursor-pointer hover:bg-indigo-50 hover:border-indigo-200" data-chip="${escapeHtml(h)}">[${escapeHtml(h)}]</span>
+  `).join('');
+  chipsContainer.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const placeholder = `[${chip.dataset.chip}]`;
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
+        const start = activeEl.selectionStart;
+        const end = activeEl.selectionEnd;
+        const val = activeEl.value;
+        activeEl.value = val.slice(0, start) + placeholder + val.slice(end);
+        activeEl.focus();
+        activeEl.dispatchEvent(new Event('input'));
+      }
+    });
+  });
+}
+
+export const templateEditor = {
+  getTemplates,
+  getCurrentSequenceId,
+  setColumnHeaders,
+  subscribe,
+  loadTemplates,
+  initTemplateEditorUI: () => {
+    sequences.subscribe(() => {
+      if (currentSequenceId && !sequences.getSequences().find(s => s.id === currentSequenceId)) {
+        loadTemplates(null);
+      }
+    });
+  },
+  renderTemplateEditor,
+};

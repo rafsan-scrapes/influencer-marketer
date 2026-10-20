@@ -1,170 +1,87 @@
-// src/api.js — the ONLY module allowed to call fetch for the AI.
-// Bynara router (`https://router.bynara.id/v1`), OpenAI-compatible
-// `/chat/completions`. No DOM, no placeholder logic.
-// The API key is passed in per call and never logged.
+// frontend/src/api.js — API client (fetch wrappers, auth handling)
 
-export const CHAT_COMPLETIONS_PATH = "/chat/completions";
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-export function resolveChatUrl(endpoint) {
-  const base = (endpoint || "").trim().replace(/\/+$/, "");
-  // Relative endpoint (e.g. `/bynara-api` via the Vite dev proxy) resolves
-  // against the current origin; absolute URLs pass through untouched.
-  if (base.startsWith("/")) {
-    if (typeof window !== "undefined" && window.location?.origin) {
-      const origin = window.location.origin.replace(/\/+$/, "");
-      if (base.endsWith(CHAT_COMPLETIONS_PATH)) return origin + base;
-      return origin + base + CHAT_COMPLETIONS_PATH;
-    }
-    return base.endsWith(CHAT_COMPLETIONS_PATH) ? base : base + CHAT_COMPLETIONS_PATH;
-  }
-  if (base.endsWith(CHAT_COMPLETIONS_PATH)) return base;
-  return base + CHAT_COMPLETIONS_PATH;
-}
-
-function classifyHttpError(status, detail, gatewayType) {
-  // Bynara returns `{ error: { type, message } }` — map its types first so
-  // the user sees plan/quota problems instead of a generic HTTP message.
-  if (gatewayType === "forbidden") {
-    return {
-      kind: "auth",
-      message: "Key valid but plan does not include this model (or account suspended)." + (detail ? " " + detail : "")
-    };
-  }
-  if (gatewayType === "rate_limited") {
-    return {
-      kind: "rate-limit",
-      message: "Rate limit or daily token quota reached for this model tier. Other tiers may still work — wait and retry." + (detail ? " " + detail : "")
-    };
-  }
-  if (gatewayType === "validation_error") {
-    return {
-      kind: "config",
-      message: "Request rejected as malformed. Check the model alias." + (detail ? " " + detail : "")
-    };
-  }
-  if (status === 401 || status === 403) {
-    return {
-      kind: "auth",
-      message: "Authentication failed (HTTP " + status + "). Check the API key." + (detail ? " " + detail : "")
-    };
-  }
-  if (status === 404) {
-    return {
-      kind: "not-found",
-      message: "Endpoint or model not found (HTTP 404). Check the endpoint URL and model name." + (detail ? " " + detail : "")
-    };
-  }
-  if (status === 429) {
-    return {
-      kind: "rate-limit",
-      message: "Rate limited (HTTP 429). Wait a moment and try again." + (detail ? " " + detail : "")
-    };
-  }
-  return {
-    kind: "http",
-    message: "Request failed (HTTP " + status + ")." + (detail ? " " + detail : "")
+async function request(path, options = {}) {
+  const url = `${API_BASE}${path}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
   };
-}
 
-function classifyNetworkError(err, url) {
-  // Browsers report CORS blocks, DNS failures, refused connections, and
-  // offline state all as a generic TypeError — they are indistinguishable
-  // from fetch. Say so explicitly rather than guessing.
-  const hint =
-    url && (url.includes("localhost") || url.includes("127.0.0.1"))
-      ? " That address is a local server, not the Bynara router. Use `https://router.bynara.id/v1` (or `/bynara-api` in dev via the Vite proxy)."
-      : " If the URL is correct, the server likely blocked the browser (CORS). In dev, set Endpoint to `/bynara-api` so Vite proxies the request.";
-  if (err instanceof TypeError) {
-    return {
-      kind: "network",
-      message:
-        "Network error: the request never reached the server (" + (url || "unknown URL") + ")." +
-        " This is usually a CORS block (browser refused the cross-origin response)," +
-        " a wrong endpoint URL, or no internet connection." + hint
-    };
-  }
-  return { kind: "network", message: "Network error: " + (err && err.message ? err.message : String(err)) };
-}
+  const config = {
+    ...options,
+    headers,
+    credentials: 'include', // Include cookies for JWT
+  };
 
-async function postChatCompletions({ endpoint, apiKey, model, messages, maxTokens }) {
-  if (!apiKey) {
-    return { ok: false, kind: "auth", message: "No API key set. Enter it in the AI Config tab." };
-  }
-  if (!model) {
-    return { ok: false, kind: "config", message: "No model set. Enter the model name in the AI Config tab." };
-  }
-  let res;
-  try {
-    res = await fetch(resolveChatUrl(endpoint), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + apiKey
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        ...(typeof maxTokens === "number" ? { max_tokens: maxTokens } : {})
-      })
-    });
-  } catch (err) {
-    const classified = classifyNetworkError(err, resolveChatUrl(endpoint));
-    return { ok: false, ...classified };
-  }
+  const res = await fetch(url, config);
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    let detail = "";
-    let gatewayType = "";
-    try {
-      const text = await res.text();
-      detail = text.slice(0, 300);
-      try {
-        gatewayType = JSON.parse(text)?.error?.type || "";
-      } catch {
-        // non-JSON error body — fall back to status-based classification
-      }
-    } catch {
-      // ignore body read failures
-    }
-    const classified = classifyHttpError(res.status, detail, gatewayType);
-    return { ok: false, ...classified };
+    const err = new Error(data.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.code = data.error?.code;
+    err.details = data.error?.details;
+    throw err;
   }
 
-  let data;
-  try {
-    data = await res.json();
-  } catch {
-    return { ok: false, kind: "http", message: "Server returned an unreadable response (not JSON)." };
-  }
-  const content = data?.choices?.[0]?.message?.content;
-  if (typeof content !== "string") {
-    return { ok: false, kind: "http", message: "Server response had no message content." };
-  }
-  return { ok: true, kind: "ok", message: "Connection successful.", content };
+  return data;
 }
 
-// Cheap connectivity check: one minimal completion.
-export function testConnection({ endpoint, apiKey, model }) {
-  return postChatCompletions({
-    endpoint,
-    apiKey,
-    model,
-    messages: [{ role: "user", content: "ping" }],
-    maxTokens: 1
-  });
-}
+export const api = {
+  // Auth
+  signup: (email, password) => request('/auth/signup', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  me: () => request('/auth/me'),
+  logout: () => request('/auth/logout', { method: 'POST' }),
 
-// Full generation call used by the run pipeline (Unit 7).
-// `system`/`userContent` come from templates.buildPromptPayload —
-// this module never substitutes [Column Name] tokens itself.
-export function sendMessage({ endpoint, apiKey, model, system, userContent }) {
-  return postChatCompletions({
-    endpoint,
-    apiKey,
-    model,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userContent }
-    ]
-  });
-}
+  // Projects
+  listProjects: () => request('/api/projects'),
+  createProject: (name) => request('/api/projects', { method: 'POST', body: JSON.stringify({ name }) }),
+  updateProject: (id, name) => request(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteProject: (id) => request(`/api/projects/${id}`, { method: 'DELETE' }),
+
+  // Sequences
+  listSequences: (projectId) => request(`/api/projects/${projectId}/sequences`),
+  createSequence: (projectId, name) => request(`/api/projects/${projectId}/sequences`, { method: 'POST', body: JSON.stringify({ name }) }),
+  updateSequence: (projectId, id, name) => request(`/api/projects/${projectId}/sequences/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteSequence: (projectId, id) => request(`/api/projects/${projectId}/sequences/${id}`, { method: 'DELETE' }),
+  reorderSequences: (projectId, ids) => request(`/api/projects/${projectId}/sequences/reorder`, { method: 'POST', body: JSON.stringify({ ids }) }),
+
+  // Templates
+  listTemplates: (sequenceId) => request(`/api/sequences/${sequenceId}/templates`),
+  createTemplate: (sequenceId, data) => request(`/api/sequences/${sequenceId}/templates`, { method: 'POST', body: JSON.stringify(data) }),
+  updateTemplate: (id, data) => request(`/api/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteTemplate: (id) => request(`/api/templates/${id}`, { method: 'DELETE' }),
+  addCondition: (templateId, data) => request(`/api/templates/${templateId}/conditions`, { method: 'POST', body: JSON.stringify(data) }),
+  updateCondition: (id, data) => request(`/api/conditions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCondition: (id) => request(`/api/conditions/${id}`, { method: 'DELETE' }),
+
+  // Contacts
+  importContacts: (projectId, headers, rows) => request(`/api/projects/${projectId}/contacts/import`, { method: 'POST', body: JSON.stringify({ headers, rows }) }),
+  listContacts: (projectId) => request(`/api/projects/${projectId}/contacts`),
+  updateContactSequenceStep: (contactId, step) => request(`/api/contacts/${contactId}/sequence-step`, { method: 'PATCH', body: JSON.stringify({ step }) }),
+
+  // Generation
+  generate: (projectId, contactIds, sequenceId) => request(`/api/projects/${projectId}/generate`, { method: 'POST', body: JSON.stringify({ contactIds, sequenceId }) }),
+
+  // Generated Emails
+  listGenerated: (projectId, { sequenceId, status, contactId, limit = 50, offset = 0 } = {}) => {
+    const params = new URLSearchParams();
+    if (sequenceId) params.set('sequenceId', sequenceId);
+    if (status) params.set('status', status);
+    if (contactId) params.set('contactId', contactId);
+    params.set('limit', String(limit));
+    params.set('offset', String(offset));
+    return request(`/api/projects/${projectId}/generated-emails?${params.toString()}`);
+  },
+  deleteGenerated: (id) => request(`/api/generated-emails/${id}`, { method: 'DELETE' }),
+
+  // AI Proxy
+  generateAI: (data) => request('/api/ai/generate', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Settings
+  getSettings: () => request('/api/settings'),
+  updateSettings: (data) => request('/api/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+};
