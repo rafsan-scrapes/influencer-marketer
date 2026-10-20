@@ -40,3 +40,14 @@ coverage/
 
 # Misc
 *.pem
+
+# Sensitive files (cookies, test credentials)
+cookies.txt
+signup.json
+
+# Railway config (using dashboard-based approach)
+railway.toml
+
+# Root package.json (if any - monorepo uses service-specific ones)
+package.json
+package-lock.json
