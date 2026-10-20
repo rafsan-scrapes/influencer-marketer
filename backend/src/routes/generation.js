@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { query } from '../db.js';
 import { evaluateConditions, substitutePlaceholders, buildPromptPayload, splitFirstLine } from '../services/templateEngine.js';
 import { generateContent } from '../services/gemini.js';
+import { getUserDecryptedApiKey } from '../services/auth.js';
 
 const router = express.Router();
 
@@ -17,6 +18,13 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const data = generateSchema.parse(req.body);
+    const userId = req.user.id;
+
+    // Fetch user's Gemini API key
+    const apiKey = await getUserDecryptedApiKey(userId);
+    if (!apiKey) {
+      return res.status(400).json({ error: { code: 'MISSING_API_KEY', message: 'Gemini API key not configured. Add it in Settings.' } });
+    }
 
     // Fetch contacts
     const placeholders = data.contactIds.map((_, i) => `$${i + 1}`).join(',');
@@ -125,13 +133,14 @@ router.post('/projects/:projectId/generate', async (req, res, next) => {
           // Build prompt payload
           const { system, userContent } = buildPromptPayload(block, row);
 
-          // Call Gemini
+          // Call Gemini with user's API key
           try {
             const content = await generateContent({
               model: block.ai_model || 'gemini-1.5-flash',
               temperature: block.ai_temperature ?? 0.3,
               systemPrompt: system,
               userPrompt: userContent,
+              apiKey,
             });
 
             aiUsed = true;

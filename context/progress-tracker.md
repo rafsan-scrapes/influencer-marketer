@@ -4,11 +4,11 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**Phase 2: Frontend Integration** — Unit 8 (Project Switcher UI & API Client)
+**Phase 1.5: Authentication Backend** — Unit 9 (Auth Backend: Signup, Login, JWT, Password Hashing)
 
 ## Current Goal
 
-Build frontend integration: API client, project switcher, and project-aware tab routing.
+Build authentication backend: bcrypt password hashing, JWT tokens, auth middleware, signup/login/me/logout endpoints.
 
 ## Completed
 
@@ -22,9 +22,9 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 
 #### Unit 1 — Express + pg Setup, Railway Config, Health Check
 - [x] Create `backend/` folder with `package.json`
-- [x] Install dependencies: `express`, `pg`, `cors`, `dotenv`, `zod`
+- [x] Install dependencies: `express`, `pg`, `cors`, `dotenv`, `zod`, `bcrypt`, `jsonwebtoken`
 - [x] Create `src/db.js` with pg Pool and migration runner
-- [x] Create `src/migrations/001_init.sql` with full schema
+- [x] Create `src/migrations/001_init.sql` with full schema (including users, user_settings)
 - [x] Create `src/index.js` with Express app, CORS, JSON parser, error handler
 - [x] Add health check endpoint `GET /health`
 - [x] Create `Dockerfile` for backend
@@ -92,10 +92,10 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 - [x] Create `src/services/gemini.js` with `generateContent()` function
 - [x] Create `src/routes/ai.js` with `POST /api/ai/generate`
 - [x] Accept: `{ model, temperature, systemPrompt, userPrompt }`
-- [x] Call Google Gemini REST API with `GEMINI_API_KEY` from env
+- [x] Call Google Gemini REST API with user's API key from DB
 - [x] Return `{ content: string }` or error
 
-**Verify:** Set `GEMINI_API_KEY` → call endpoint with test prompt → returns generated text.
+**Verify:** Set `GEMINI_API_KEY` in user settings → call endpoint with test prompt → returns generated text.
 
 ---
 
@@ -109,31 +109,68 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 
 ---
 
-### Phase 2: Frontend Integration (Units 8–13)
+### Phase 1.5: Authentication Backend (Units 9–11)
 
-#### Unit 8 — Project Switcher UI & API Client
-- [ ] Create `frontend/src/api.js` with fetch wrappers for all endpoints
+#### Unit 9 — Auth Backend: Signup, Login, JWT, Password Hashing
+- [ ] Create `src/services/auth.js` with bcrypt password hashing, JWT sign/verify, API key encryption
+- [ ] Create `src/middleware/auth.js` — JWT verification, attaches `req.user`
+- [ ] Create `src/routes/auth.js` with:
+  - `POST /auth/signup` — email, password → creates user, returns JWT in httpOnly cookie
+  - `POST /auth/login` — email, password → returns JWT in httpOnly cookie
+  - `GET /auth/me` — returns current user + settings (requires auth)
+  - `POST /auth/logout` — clears cookie
+- [ ] Add `pgcrypto` extension for encryption or app-level AES-256
+- [ ] Update `src/index.js` to mount auth routes and apply auth middleware to protected routes
+
+**Verify:** Signup → login → GET /auth/me returns user → logout → cookie cleared.
+
+---
+
+#### Unit 10 — User Settings API (Gemini API Key, Defaults)
+- [ ] Create `src/routes/settings.js` with:
+  - `GET /api/settings` — returns masked API key, default model, temperature
+  - `PATCH /api/settings` — update API key (encrypted), model, temperature
+- [ ] API key stored encrypted in `user_settings.gemini_api_key_encrypted`
+- [ ] GET returns masked key (e.g., `sk-****1234`) for display
+
+**Verify:** Login → PATCH /api/settings with API key → GET returns masked key → generation uses user's key.
+
+---
+
+#### Unit 11 — Migration Update & Protected Routes
+- [ ] Update `src/migrations/001_init.sql` with users, user_settings tables and triggers
+- [ ] Run migration on local DB
+- [ ] Verify all existing routes (projects, sequences, templates, contacts, generation) are protected by auth middleware
+- [ ] Verify user-scoping: users only see their own projects/data
+
+**Verify:** Create 2 users → each sees only their projects → generation uses correct API key per user.
+
+---
+
+### Phase 2: Frontend Integration (Units 12–19)
+
+#### Unit 12 — Auth Frontend: Login, Signup, Session, Protected Routes
+- [ ] Create `frontend/src/auth.js` — auth state, login/logout/signup, token in httpOnly cookie, auto-refresh
+- [ ] Create `frontend/src/api.js` with fetch wrappers for all endpoints; attaches credentials
 - [ ] Create `frontend/src/store.js` (UI prefs only: theme, lastProjectId)
-- [ ] Create `frontend/src/projects.js` with project list, create, switch, delete UI
-- [ ] Update `frontend/src/main.js` for project-aware tab routing
+- [ ] Update `frontend/src/main.js` — auth initialization, protected route guards, redirect to login if unauthenticated
+- [ ] Login/Signup pages (simple forms, error handling)
 - [ ] Persist last selected project in localStorage
 
-**Verify:** Create 2 projects → switch between them → reload → last project restored.
+**Verify:** Signup → login → reload → auto-logged in → logout → redirect to login.
 
-### Phase 2: Frontend Integration (Units 8–13)
+---
 
-#### Unit 8 — Project Switcher UI & API Client
-- [ ] Create `frontend/src/api.js` with fetch wrappers for all endpoints
-- [ ] Create `frontend/src/store.js` (UI prefs only: theme, lastProjectId)
+#### Unit 13 — Project Switcher UI
 - [ ] Create `frontend/src/projects.js` with project list, create, switch, delete UI
-- [ ] Update `frontend/src/main.js` for project-aware tab routing
-- [ ] Persist last selected project in localStorage
+- [ ] Project selector in header/sidebar
+- [ ] Call project API endpoints
 
 **Verify:** Create 2 projects → switch between them → reload → last project restored.
 
 ---
 
-#### Unit 9 — Sequence Manager UI
+#### Unit 14 — Sequence Manager UI
 - [ ] Create `frontend/src/sequences.js` with sequence list per project
 - [ ] Add sequence: name input, add button
 - [ ] Reorder: drag-and-drop or up/down buttons
@@ -144,12 +181,12 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 
 ---
 
-#### Unit 10 — Template Editor per Sequence
+#### Unit 15 — Template Editor per Sequence
 - [ ] Adapt `frontend/src/templateEditor.js` for per-sequence context
 - [ ] Sequence selector (tabs or dropdown) to switch template editor context
 - [ ] Default block: Subject, Body, Prompt, AI toggle, model select, temperature, first-line-split
 - [ ] Condition blocks: add/delete/reorder, AND-joined condition rows
-- [ ] AI config per block (use_ai, model, temperature)
+- [ ] AI config per block (use_ai, model, temperature) — defaults from user settings
 - [ ] Column chips from loaded CSV headers
 - [ ] Persist templates via API (not localStorage)
 
@@ -157,7 +194,7 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 
 ---
 
-#### Unit 11 — Contacts Table with Sequence Step Dropdown
+#### Unit 16 — Contacts Table with Sequence Step Dropdown
 - [ ] Create `frontend/src/contacts.js` (replaces `brands.js`)
 - [ ] CSV upload with PapaParse (client-side preview)
 - [ ] Send to backend `/contacts/import` on confirm
@@ -170,7 +207,7 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 
 ---
 
-#### Unit 12 — Generation Pipeline UI
+#### Unit 17 — Generation Pipeline UI
 - [ ] Create `frontend/src/generator.js`
 - [ ] UI: selected contacts + target sequence selector → "Run Generation" button
 - [ ] Call `POST /api/projects/:projectId/generate` with contactIds + sequenceId
@@ -181,7 +218,7 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 
 ---
 
-#### Unit 13 — Generated Emails View
+#### Unit 18 — Generated Emails View
 - [ ] Create `frontend/src/generated.js`
 - [ ] Per-sequence tabs (Sequence 1, 2, 3...)
 - [ ] Table: contact email, subject (copy), body (copy), status, timestamp, delete
@@ -192,9 +229,19 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 
 ---
 
-### Phase 3: Polish & Deploy (Units 14–16)
+#### Unit 19 — User Settings UI
+- [ ] Create `frontend/src/settings.js`
+- [ ] Settings page: Gemini API key (password input), default model, default temperature
+- [ ] Save → PATCH /api/settings
+- [ ] Mask API key in display
 
-#### Unit 14 — Error Handling, Loading States, Validation
+**Verify:** Enter API key → save → reload → key masked → generation works.
+
+---
+
+### Phase 3: Polish & Deploy (Units 20–22)
+
+#### Unit 20 — Error Handling, Loading States, Validation
 - [ ] Frontend: global error boundary, toast notifications
 - [ ] Backend: consistent error responses, request validation
 - [ ] Frontend: loading skeletons, disabled states during API calls
@@ -205,19 +252,19 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 
 ---
 
-#### Unit 15 — Railway Deployment Config
+#### Unit 21 — Railway Deployment Config
 - [ ] Create `frontend/Dockerfile` (multi-stage: build → nginx)
 - [ ] Create `frontend/nginx.conf` (SPA fallback, proxy API calls)
 - [ ] Update `railway.toml` with frontend service
-- [ ] Configure Railway environment variables: `DATABASE_URL`, `GEMINI_API_KEY`, `FRONTEND_URL`, `VITE_API_URL`
+- [ ] Configure Railway environment variables: `DATABASE_URL` (auto), `JWT_SECRET`, `ENCRYPTION_KEY`, `FRONTEND_URL`, `VITE_API_URL`
 - [ ] Test local Docker build for both services
 
 **Verify:** `docker build` passes for both; Railway deployment succeeds.
 
 ---
 
-#### Unit 16 — E2E Testing & Documentation
-- [ ] Full flow test: create project → sequences → templates → import CSV → set steps → generate → view → copy
+#### Unit 22 — E2E Testing & Documentation
+- [ ] Full flow test: signup → login → settings (API key) → create project → sequences → templates → import CSV → set steps → generate → view → copy
 - [ ] Update `README.md` with setup, deployment, usage instructions
 - [ ] Document API endpoints, data model, environment variables
 
@@ -241,14 +288,16 @@ Build frontend integration: API client, project switcher, and project-aware tab 
 | Cascade delete on project | Clean data hygiene; no orphaned records |
 | UUID primary keys | Distributed-friendly; no sequence conflicts |
 | JSONB for csv_data | Flexible schema; stores all CSV columns without migrations |
+| JWT in httpOnly cookies | Secure, CSRF-resistant, automatic with credentials |
+| Per-user encrypted API keys | Multi-user support, no .env secrets needed |
 
 ## Session Notes
 
 - **Frontend**: Vite + Vanilla JS + Tailwind (existing, enhanced)
 - **Backend**: Express + pg (new)
 - **Database**: PostgreSQL on Railway
-- **AI**: Google Gemini (backend-proxied)
-- **Auth**: None (single user)
+- **AI**: Google Gemini (backend-proxied, per-user API key)
+- **Auth**: Email/password, JWT in httpOnly cookies
 - **Testing**: User tests on Railway after each unit; no automated test suite required
 
 ---

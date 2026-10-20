@@ -1,7 +1,9 @@
 // backend/src/index.js — Express app entry point
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import authRoutes from './routes/auth.js';
 import projectRoutes from './routes/projects.js';
 import sequenceRoutes from './routes/sequences.js';
 import templateRoutes from './routes/templates.js';
@@ -9,6 +11,8 @@ import contactRoutes from './routes/contacts.js';
 import generatedRoutes from './routes/generated.js';
 import aiRoutes from './routes/ai.js';
 import generationRoutes from './routes/generation.js';
+import settingsRoutes from './routes/settings.js';
+import { authMiddleware } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -23,6 +27,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 
 // Request logging
 app.use((req, res, next) => {
@@ -34,12 +39,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
+// Health check endpoint (public)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API routes
+// Auth routes (public)
+app.use('/auth', authRoutes);
+
+// Protected API routes — all require authentication
+app.use('/api', authMiddleware);
 app.use('/api/projects', projectRoutes);
 app.use('/api', sequenceRoutes);
 app.use('/api', templateRoutes);
@@ -47,6 +56,7 @@ app.use('/api', contactRoutes);
 app.use('/api', generatedRoutes);
 app.use('/api', aiRoutes);
 app.use('/api', generationRoutes);
+app.use('/api', settingsRoutes);
 
 // 404 handler
 app.use((req, res) => {

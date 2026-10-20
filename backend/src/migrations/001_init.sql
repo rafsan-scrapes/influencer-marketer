@@ -3,10 +3,31 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto"; -- for gen_random_uuid, encryption
 
--- Projects
+-- Users
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(320) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- User Settings (Gemini API key, defaults)
+CREATE TABLE user_settings (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    gemini_api_key_encrypted TEXT, -- encrypted with pgcrypto or app-level
+    default_ai_model VARCHAR(100) NOT NULL DEFAULT 'gemini-1.5-flash',
+    default_ai_temperature NUMERIC(3,2) NOT NULL DEFAULT 0.30,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Projects (user-scoped)
 CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -14,7 +35,7 @@ CREATE TABLE projects (
 
 -- Sequences (steps within a project)
 CREATE TABLE sequences (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL DEFAULT 'Sequence',
     step_order INT NOT NULL,
@@ -24,7 +45,7 @@ CREATE TABLE sequences (
 
 -- Templates (default + condition blocks per sequence)
 CREATE TABLE templates (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sequence_id UUID NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     subject TEXT NOT NULL DEFAULT '',
@@ -41,7 +62,7 @@ CREATE TABLE templates (
 
 -- Conditions (AND-joined per template)
 CREATE TABLE conditions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     template_id UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
     column_name VARCHAR(255) NOT NULL,
     operator VARCHAR(20) NOT NULL CHECK (operator IN ('equals', 'contains', 'is_empty')),
@@ -52,7 +73,7 @@ CREATE TABLE conditions (
 
 -- Contacts (from CSV import)
 CREATE TABLE contacts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     csv_row_index INT NOT NULL,
     email VARCHAR(320) NOT NULL,
@@ -64,7 +85,7 @@ CREATE TABLE contacts (
 
 -- Generated Emails (per contact per sequence)
 CREATE TABLE generated_emails (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
     sequence_id UUID NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
     subject TEXT NOT NULL DEFAULT '',
@@ -76,6 +97,8 @@ CREATE TABLE generated_emails (
 );
 
 -- Indexes for common queries
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_projects_user ON projects(user_id);
 CREATE INDEX idx_sequences_project ON sequences(project_id);
 CREATE INDEX idx_templates_sequence ON templates(sequence_id);
 CREATE INDEX idx_conditions_template ON conditions(template_id);
@@ -93,5 +116,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_settings_updated_at BEFORE UPDATE ON user_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_templates_updated_at BEFORE UPDATE ON templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

@@ -1,8 +1,7 @@
 // backend/src/services/gemini.js — Google Gemini API client
-export async function generateContent({ model, temperature, systemPrompt, userPrompt }) {
-  const apiKey = process.env.GEMINI_API_KEY;
+export async function generateContent({ model, temperature, systemPrompt, userPrompt, apiKey }) {
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY not configured');
+    throw new Error('Gemini API key not provided');
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
