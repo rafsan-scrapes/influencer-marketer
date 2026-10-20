@@ -56,9 +56,13 @@ CREATE TABLE templates (
     ai_temperature NUMERIC(3,2) NOT NULL DEFAULT 0.30,
     subject_from_first_line BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (sequence_id, is_default) WHERE is_default = TRUE
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Allow at most one default template per sequence.
+CREATE UNIQUE INDEX idx_templates_one_default_per_sequence
+    ON templates (sequence_id)
+    WHERE is_default = TRUE;
 
 -- Conditions (AND-joined per template)
 CREATE TABLE conditions (
