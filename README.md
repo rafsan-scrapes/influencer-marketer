@@ -71,7 +71,6 @@ The full source is private while the tool is being finished.
 
 **Follow for release updates and access to the actual code:**
 
-- LinkedIn: [Your LinkedIn URL here]
-- Instagram: [Your Instagram URL here]
+- Instagram: [\[Your Instagram URL here\]](https://www.instagram.com/rafsan_codes/)
 
 Send me your LinkedIn / Instagram handle plus your agency name and I'll share access details.

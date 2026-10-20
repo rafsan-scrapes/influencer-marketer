@@ -1,0 +1,16 @@
+# railway.toml
+[build]
+builder = "docker"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on-failure"
+
+[[services]]
+name = "backend"
+dockerfilePath = "backend/Dockerfile"
+
+[[services]]
+name = "frontend"
+dockerfilePath = "frontend/Dockerfile"

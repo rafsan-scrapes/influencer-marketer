@@ -4,109 +4,225 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-Phase 1 (Brand outreach generator): complete — all 9 units verified, plus Bynara migration, reserved `[Subject]`/`[Body]` prompt tokens, per-block first-line subject split, and persisted last-run summary. Remaining: manual browser pass with a Bynara key.
+**Phase 2: Frontend Integration** — Unit 8 (Project Switcher UI & API Client)
 
 ## Current Goal
 
-Manual browser pass (Bynara key + live AI run, plus Run without AI on a fresh CSV), then Phase 2 (Influencers).
+Build frontend integration: API client, project switcher, and project-aware tab routing.
 
 ## Completed
 
 - Product scope, UI layout, template/condition model, placeholder system, and run output model finalised in `project-overview.md`.
 - Workflow rules finalised in `ai-workflow-rules.md`.
-- Unit 1 — Scaffold done: Vite + vanilla JS + Tailwind v3 shell (`index.html`, `src/main.js` with `showTab`, `src/style.css`); four working tabs + disabled Influencers button; `context/architecture.md` created. Verify passed: tab wiring confirmed via source check (4 buttons toggle 4 panels, Influencers excluded/disabled); `npm run build` exits 0 and produces `dist/`.
-- Unit 2 — Store done: `src/store.js` (versioned keys `im_<domain>.v1`, safe JSON, generic `get`/`set` + typed `getConfig`/`setConfig`, `getTemplates`/`setTemplates`, `getRuns`/`setRuns`/`addRun`/`clearRuns`); exposed as `window.store` in `src/main.js` for console use. Verify passed: node test with localStorage stub (roundtrip, reload persistence, corrupt/wrong-type JSON → default, unknown domain throws, addRun/clearRuns); `npm run build` exits 0.
-- Unit 3 — AI Config done: `src/api.js` (only fetcher; `testConnection` + `sendMessage` against `/chat/completions`, errors classified as auth / not-found / rate-limit / http / network-with-CORS-note / config) and `src/aiConfig.js` (form restore on load, persist on input/change, Test Connection with busy/success/error status). Verify passed: 15 node assertions with stubbed fetch (URL resolution, bearer header, body shape, all error kinds, missing-key/model short-circuit); `npm run build` exits 0. Live key/model check and reload-restore still need a manual browser pass.
-- Unit 4 — CSV Upload and Brands Table done: `src/csv.js` (PapaParse, `parseCsv`/`parseCsvText`, BOM/whitespace header normalization, empty cells → `""`), `src/brands.js` (upload → table with all rows/columns, header chips on Email Template tab, status line; state persisted in new `brands` store domain `im_brands.v1`, upload replaces table without touching runs), `src/test/sample.csv` (header + 3 rows from `reachingoutsofar.csv`, original untouched). Verify passed: 18 node assertions (fixture parses to 19 headers/3 rows, quoted commas intact, empty cells `""`, table has header + 3 rows with all 19 columns, HTML escaped, 19 chips, headerless CSV rejected); `npm run build` exits 0. Manual browser pass still needed: upload 3-row CSV → table correct; upload different CSV → replaced; runs count unchanged.
-- Unit 5 — Template Engine done: `src/templates.js` (`extractPlaceholders` unique-in-order, `substitutePlaceholders` case-insensitive with `"[Name] is empty in CSV for this row"` throw, `evaluateConditions` first-AND-match else default, `buildPromptPayload` → `{ system, userContent }` fully substituted) plus `src/templates.test.js` (12 Vitest tests on a hardcoded 2-row sample, `npm test`). Judgment calls: condition equals/contains compare case-insensitively on trimmed values; `isEmpty` = trimmed empty; `evaluateConditions` takes an optional third `defaultBlock` param (null when omitted). Verify passed: `npm test` 12/12; `npm run build` exits 0.
-- Unit 6 — Email Template Tab UI done: `src/templateEditor.js` (clickable chips inserting `[Column]` at cursor in the focused Subject/Body/Prompt box; default Subject/Body/Prompt; condition blocks with add/delete/up/down, multi-row AND conditions with column select-or-text, op dropdown, value input auto-disabled for `isEmpty`; all state persisted to `templates` on every input/change, restored on load; chips/columns refresh on `im:headers-changed` dispatched by `brands.js`). Judgment calls: condition column is a header `<select>` when a CSV is loaded, free-text input otherwise; one condition row minimum per block. Verify passed: `npm test` 20/20 (8 new jsdom tests: typing persists + reload restores, block add/fill/reload, delete, reorder, AND rows, chip-at-cursor insertion, headers event); `npm run build` exits 0. Manual browser pass still needed: chip click inserts at cursor; reload restores blocks.
-- Unit 7 — Row Selection and Sequential Run done: `src/runner.js` (`runRows` iterates selected indices with `await`, per-row evaluate → substitute (throw → error with column name) → skip when Subject+Body both blank → `buildPromptPayload` → `sendMessage`; `brandNameFor`/`emailSequenceFor` helpers; results returned in-memory, NOT persisted — that is Unit 8) and Brands UI in `src/brands.js` (checkbox column, Select All/Deselect All, Run button, live idle/generating/done/error/skipped pills with inline messages, buttons disabled mid-run, selection defaults to all rows, statuses reset per run). Judgment calls: whitespace-only Subject+Body counts as empty (skip); `im:headers-changed` now fires only when headers actually change (paint runs per status update). Verify passed: `npm test` 30/30 (10 new: done/error/done sequence with exact status transitions, skip without fetch, auth failure → error, result shape, column helpers, checkbox/status rendering, escaping); `npm run build` exits 0. Manual browser pass still needed: 3-row run with row-2 empty cell shows live statuses.
-- Unit 8 — Runs Tab done: `src/runs.js` (`makeRunEntry`, newest-first render with brand name, sequence value, timestamp, Subject/Body copy buttons via `navigator.clipboard` + toast, Clear All Runs) and `src/brands.js` run handler now saves one `RunEntry` per successful row and calls `refreshRuns()`. Judgment call: entry subject = substituted template subject, entry body = AI-completed email (falls back to substituted body when the model returns nothing) — the AI returns a single text, so it cannot be split reliably. Verify passed: `npm test` 36/36 (6 new: entry shape, newest-first order, exact-text clipboard copy for subject+body, clear-all empties UI+store persistently, end-to-end run→2 entries rendered newest-first); `npm run build` exits 0. Manual browser pass still needed: copy buttons hit the real clipboard; clear-all survives reload.
-- Unit 9 — Persistence Verification and Build Pass done: `src/persistence.test.js` boots the real `index.html` + `main.js` in jsdom, seeds config + 2-block template + 3-row CSV + 1 run entry, reloads with fresh modules/DOM, and asserts all state restores (config values with password key field, default + both condition blocks with values and column selects, 3-row table all selected, chips, runs entry; store intact). `dist/` deleted and rebuilt from scratch: `npm run build` exits 0 with no app-code warnings. `npm run preview` smoke-tested: HTTP 200 with app title. Verify passed: `npm test` 37/37; build exits 0; preview OK.
+- Architecture decisions, module boundaries, database schema, API contracts documented in `architecture.md`.
 
 ## In Progress
 
-## Next Up
+### Phase 1: Backend Foundation (Units 1–8) — **COMPLETE**
 
-Build in this order. Each unit must pass its verification before the next begins.
+#### Unit 1 — Express + pg Setup, Railway Config, Health Check
+- [x] Create `backend/` folder with `package.json`
+- [x] Install dependencies: `express`, `pg`, `cors`, `dotenv`, `zod`
+- [x] Create `src/db.js` with pg Pool and migration runner
+- [x] Create `src/migrations/001_init.sql` with full schema
+- [x] Create `src/index.js` with Express app, CORS, JSON parser, error handler
+- [x] Add health check endpoint `GET /health`
+- [x] Create `Dockerfile` for backend
+- [x] Create `railway.toml` with backend service
+- [x] Add `npm run dev`, `npm run start`, `npm run migrate` scripts
 
-### Unit 1 — Scaffold
-Set up Vite + vanilla JS + Tailwind. Create the four top-level tabs (AI Config, Email Template, Brands, Runs — Influencers tab disabled/greyed). `npm run dev` serves a shell with working tab navigation. `npm run build` passes.
-
-**Verify:** Tab clicks switch the visible panel. Build produces a `dist/` folder.
-
----
-
-### Unit 2 — Store
-Write `src/store.js`: a localStorage wrapper with versioned keys, safe JSON parse/stringify, and typed getters/setters for each domain (config, templates, runs). No UI.
-
-**Verify:** Open browser console → `store.set('config', { apiKey: 'test' })` → reload → `store.get('config')` returns `{ apiKey: 'test' }`.
-
----
-
-### Unit 3 — AI Config Tab
-Build the AI Config tab UI and `src/api.js`. Fields: API key (password), model alias (free text), endpoint (with default). Test Connection button fires a request to the configured endpoint, surfaces success or specific errors (auth, CORS, network). All values persist via `store.js`.
-
-**Verify:** Enter a valid key and model → Test Connection shows success. Enter a bad key → shows auth error. Reload → all fields restored.
+**Verify:** `npm run dev` starts server on port 3000; `GET /health` returns `{ status: "ok" }`; `npm run migrate` creates tables in local PostgreSQL.
 
 ---
 
-### Unit 4 — CSV Upload and Brands Table
-Build `src/csv.js` (PapaParse). CSV upload on the Brands tab parses headers and rows. Table renders all rows with all column values. Header chips appear at the top of the Email Template tab once a CSV is loaded. Uploading a second CSV replaces the table; does not clear runs.
+#### Unit 2 — Project CRUD API
+- [x] Create `src/routes/projects.js` with GET/POST/PATCH/DELETE `/api/projects`
+- [x] Mount routes in `index.js`
+- [x] Add Zod validation for request bodies
+- [x] Return consistent JSON shape with `updated_at` timestamps
 
-**Verify:** Upload a 3-row CSV → table shows 3 rows with correct values. Upload a different CSV → table replaced. Runs tab entry count unchanged.
-
----
-
-### Unit 5 — Template Engine (logic only, no UI)
-Write `src/templates.js`:
-- `extractPlaceholders(text)` → array of column names from `[Column Name]` tokens.
-- `substitutePlaceholders(text, row)` → substituted string, or throws with the specific missing-column name if any used placeholder resolves to an empty string.
-- `evaluateConditions(conditionBlocks, row)` → returns the first matching block (or the default block if none match).
-- `buildPromptPayload(block, row)` → returns `{ system, userContent }` ready to pass to `src/api.js`.
-
-No UI in this unit. Write inline tests using a hardcoded 2-row sample object.
-
-**Verify:** Tests pass in the browser console or via a `src/templates.test.js` run with Vitest.
+**Verify:** `curl` tests: create project → list projects → update name → delete project → list empty.
 
 ---
 
-### Unit 6 — Email Template Tab UI
-Build the Email Template tab:
-- Column chips at the top (populated from loaded CSV headers; click inserts `[Column Name]` at cursor in the focused input).
-- Default block: Subject input, Body textarea, Prompt textarea.
-- "Add condition" button appends a condition block below the default: one or more condition rows (`[column chip] [op dropdown] [value input]`), Subject, Body, Prompt. AND badge between rows. Delete button. Up/down reorder buttons.
-- All template state (default block content, all condition blocks) persists via `store.js`.
+#### Unit 3 — Sequence CRUD API
+- [x] Create `src/routes/sequences.js` with GET/POST/PATCH/DELETE `/api/projects/:projectId/sequences`
+- [x] Add reorder endpoint `POST /api/projects/:projectId/sequences/reorder`
+- [x] Enforce unique `step_order` per project
+- [x] Cascade delete sequences when project deleted (via FK)
 
-**Verify:** Type into Subject → reload → content restored. Add a condition block → reload → block restored with its values. Click a chip → `[Column Name]` inserted at cursor.
-
----
-
-### Unit 7 — Row Selection and Sequential Run
-On the Brands tab: add a checkbox column, Select All / Deselect All. Add a Run button. On Run, iterate selected rows sequentially (one at a time, await each): call `evaluateConditions` → `substitutePlaceholders` (block on error, mark row as error with message) → `buildPromptPayload` → `api.sendMessage`. Per-row status indicator: idle / generating / done / error / skipped. Skipped when selected block Subject + Body are both empty.
-
-**Verify:** 3-row CSV, row 2 has an empty cell that a placeholder needs → row 1 completes, row 2 shows error with column name, row 3 completes. Status updates are visible live.
+**Verify:** Create project → add 3 sequences → reorder → update name → delete sequence → delete project (cascades).
 
 ---
 
-### Unit 8 — Runs Tab
-After each successful row generation, save an entry to `store.js` runs array: `{ id, timestamp, brandName, emailSequence, subject, body }`. Runs tab renders entries newest-first. Each entry shows brand name, `[email_sequence]` column value, Subject with Copy button, Body with Copy button, timestamp. Copy buttons use `navigator.clipboard`, show a brief toast. Clear All Runs button empties the array and the UI.
+#### Unit 4 — Template & Condition CRUD API
+- [x] Create `src/routes/templates.js` with GET/POST/PATCH/DELETE `/api/sequences/:sequenceId/templates`
+- [x] Create condition endpoints: POST/PATCH/DELETE `/api/templates/:templateId/conditions`, `/api/conditions/:id`
+- [x] Enforce only ONE default template per sequence (partial unique index)
+- [x] Return templates with nested conditions array
 
-**Verify:** Run 2 rows → Runs tab shows 2 entries newest-first. Copy Subject → clipboard has the exact text. Clear All Runs → tab empty. Reload → still empty.
+**Verify:** Create sequence → add default template → add 2 condition templates → add conditions to each → fetch all → update → delete.
 
 ---
 
-### Unit 9 — Persistence Verification and Build Pass
-Reload the app after: config saved, template with 2 condition blocks saved, a CSV loaded, a run completed. Confirm everything restores correctly. Confirm `npm run build` produces a clean `dist/` with no warnings relevant to the app code. Smoke-test the built files via `npm run preview`.
+#### Unit 5 — Contact/CSV Import API
+- [x] Create `src/services/csvImport.js` for validation and bulk insert
+- [x] Create `src/routes/contacts.js` with:
+  - `POST /api/projects/:projectId/contacts/import` (bulk insert from CSV rows)
+  - `GET /api/projects/:projectId/contacts`
+  - `PATCH /api/contacts/:id/sequence-step`
+- [x] Store all CSV columns in `csv_data` JSONB
+- [x] Extract `email` column (required) for contact email field
 
-**Verify:** All state restored on reload. `npm run build` exits 0.
+**Verify:** Import 5-row CSV → verify contacts table → update sequence step per contact → fetch contacts.
 
-### Unit 10 — No-AI run done
-`src/runner.js` gained `runRowsNoAi` (condition evaluation + Subject/Body placeholder substitution only, no fetch, Prompt ignored); Brands tab has a second **Run without AI** button (`brands-run-noai`) sharing the selection/status/Runs persistence flow with the AI run. Verify passed: `npm test` 48/48; inline node check (substitution + Prompt ignored); `npm run build` exits 0.
 ---
 
-### Repo hygiene — public preview
-`.gitignore` narrowed to `add_lead_columns.py`, `filter_leadlist.py`, `*.csv` (+ existing `node_modules/`, `dist/`); `README.md` added as public preview (what it does, agency value, why not production-ready, LinkedIn/Instagram CTA with placeholder URLs to fill in).
+#### Unit 6 — Generated Emails API
+- [x] Create `src/routes/generated.js` with:
+  - `GET /api/projects/:projectId/generated-emails?sequenceId=`
+  - `DELETE /api/generated-emails/:id`
+- [x] Support filtering by status, contact
+
+**Verify:** Manually insert generated_emails rows → fetch by sequence → delete one → verify.
+
+---
+
+#### Unit 7 — Gemini Proxy Endpoint
+- [x] Create `src/services/gemini.js` with `generateContent()` function
+- [x] Create `src/routes/ai.js` with `POST /api/ai/generate`
+- [x] Accept: `{ model, temperature, systemPrompt, userPrompt }`
+- [x] Call Google Gemini REST API with `GEMINI_API_KEY` from env
+- [x] Return `{ content: string }` or error
+
+**Verify:** Set `GEMINI_API_KEY` → call endpoint with test prompt → returns generated text.
+
+---
+
+#### Unit 8 — Generation Pipeline API
+- [x] Create `src/services/templateEngine.js` (mirrors frontend logic)
+- [x] Create `src/routes/generation.js` with `POST /api/projects/:projectId/generate`
+- [x] Sequential processing: evaluate conditions → substitute placeholders → call Gemini → save results
+- [x] Handle skipped (empty subject+body), errors, AI failures
+
+**Verify:** Create project → sequences → templates → contacts → call generate endpoint → results saved to generated_emails.
+
+---
+
+### Phase 2: Frontend Integration (Units 8–13)
+
+#### Unit 8 — Project Switcher UI & API Client
+- [ ] Create `frontend/src/api.js` with fetch wrappers for all endpoints
+- [ ] Create `frontend/src/store.js` (UI prefs only: theme, lastProjectId)
+- [ ] Create `frontend/src/projects.js` with project list, create, switch, delete UI
+- [ ] Update `frontend/src/main.js` for project-aware tab routing
+- [ ] Persist last selected project in localStorage
+
+**Verify:** Create 2 projects → switch between them → reload → last project restored.
+
+### Phase 2: Frontend Integration (Units 8–13)
+
+#### Unit 8 — Project Switcher UI & API Client
+- [ ] Create `frontend/src/api.js` with fetch wrappers for all endpoints
+- [ ] Create `frontend/src/store.js` (UI prefs only: theme, lastProjectId)
+- [ ] Create `frontend/src/projects.js` with project list, create, switch, delete UI
+- [ ] Update `frontend/src/main.js` for project-aware tab routing
+- [ ] Persist last selected project in localStorage
+
+**Verify:** Create 2 projects → switch between them → reload → last project restored.
+
+---
+
+#### Unit 9 — Sequence Manager UI
+- [ ] Create `frontend/src/sequences.js` with sequence list per project
+- [ ] Add sequence: name input, add button
+- [ ] Reorder: drag-and-drop or up/down buttons
+- [ ] Delete sequence with confirmation
+- [ ] Call sequence API endpoints
+
+**Verify:** In project → add 3 sequences → reorder → delete middle → verify order.
+
+---
+
+#### Unit 10 — Template Editor per Sequence
+- [ ] Adapt `frontend/src/templateEditor.js` for per-sequence context
+- [ ] Sequence selector (tabs or dropdown) to switch template editor context
+- [ ] Default block: Subject, Body, Prompt, AI toggle, model select, temperature, first-line-split
+- [ ] Condition blocks: add/delete/reorder, AND-joined condition rows
+- [ ] AI config per block (use_ai, model, temperature)
+- [ ] Column chips from loaded CSV headers
+- [ ] Persist templates via API (not localStorage)
+
+**Verify:** Select sequence → add default template → add condition block → add conditions → switch sequence → templates isolated.
+
+---
+
+#### Unit 11 — Contacts Table with Sequence Step Dropdown
+- [ ] Create `frontend/src/contacts.js` (replaces `brands.js`)
+- [ ] CSV upload with PapaParse (client-side preview)
+- [ ] Send to backend `/contacts/import` on confirm
+- [ ] Contacts table: all CSV columns + **Current Sequence Step dropdown** per row
+- [ ] Dropdown changes → PATCH `/contacts/:id/sequence-step`
+- [ ] Checkbox selection, Select All/Deselect All
+- [ ] Row status pills (idle/generating/done/error/skipped)
+
+**Verify:** Upload CSV → see contacts → change sequence step dropdown → reload → step persisted.
+
+---
+
+#### Unit 12 — Generation Pipeline UI
+- [ ] Create `frontend/src/generator.js`
+- [ ] UI: selected contacts + target sequence selector → "Run Generation" button
+- [ ] Call `POST /api/projects/:projectId/generate` with contactIds + sequenceId
+- [ ] Show progress: per-contact status updates (polling or SSE)
+- [ ] Display results: success count, errors with messages
+
+**Verify:** Select 3 contacts → run Sequence 1 → see progress → results saved.
+
+---
+
+#### Unit 13 — Generated Emails View
+- [ ] Create `frontend/src/generated.js`
+- [ ] Per-sequence tabs (Sequence 1, 2, 3...)
+- [ ] Table: contact email, subject (copy), body (copy), status, timestamp, delete
+- [ ] Filter by status
+- [ ] Delete generated email → `DELETE /api/generated-emails/:id`
+
+**Verify:** Run generation → view Generated tab → switch sequence tabs → copy subject/body → delete entry.
+
+---
+
+### Phase 3: Polish & Deploy (Units 14–16)
+
+#### Unit 14 — Error Handling, Loading States, Validation
+- [ ] Frontend: global error boundary, toast notifications
+- [ ] Backend: consistent error responses, request validation
+- [ ] Frontend: loading skeletons, disabled states during API calls
+- [ ] Empty states for all views (no projects, no sequences, no contacts, no generated)
+- [ ] Form validation (required fields, numeric ranges)
+
+**Verify:** Trigger various errors → user-friendly messages; test empty states.
+
+---
+
+#### Unit 15 — Railway Deployment Config
+- [ ] Create `frontend/Dockerfile` (multi-stage: build → nginx)
+- [ ] Create `frontend/nginx.conf` (SPA fallback, proxy API calls)
+- [ ] Update `railway.toml` with frontend service
+- [ ] Configure Railway environment variables: `DATABASE_URL`, `GEMINI_API_KEY`, `FRONTEND_URL`, `VITE_API_URL`
+- [ ] Test local Docker build for both services
+
+**Verify:** `docker build` passes for both; Railway deployment succeeds.
+
+---
+
+#### Unit 16 — E2E Testing & Documentation
+- [ ] Full flow test: create project → sequences → templates → import CSV → set steps → generate → view → copy
+- [ ] Update `README.md` with setup, deployment, usage instructions
+- [ ] Document API endpoints, data model, environment variables
+
+**Verify:** Complete manual walkthrough on Railway; all features work end-to-end.
+
 ---
 
 ## Open Questions
@@ -117,42 +233,24 @@ Reload the app after: config saved, template with 2 condition blocks saved, a CS
 
 | Decision | Rationale |
 |---|---|
-| Vite + vanilla JS + Tailwind (not a single HTML file) | Build step was explicitly chosen; enables modules and Tailwind purging while still deploying as a static site. |
-| No backend in Phase 1 | Scope constraint; everything in localStorage. CSV never leaves the browser except as prompt text to the AI endpoint. |
-| `/chat/completions` (OpenAI-compatible) | Only endpoint that works with plain `fetch` and no SDK; uniform across models. |
-| `src/api.js` behind an interface | Lets a proxy replace direct calls in Phase 1.1 without touching the UI. |
-| Model as free-text field | User consults Bynara docs for model aliases; no stale hardcoded list. |
-| Placeholders are `[Column Name]`, case-insensitive, from CSV headers | Predictable; chips in the UI make insertion exact. |
-| Empty cell = hard error, not silent substitution | User-filled CSVs are expected to be complete for the columns a template uses; a silent empty string produces a bad email silently. |
-| `[email_sequence]` is a plain CSV column | User controls which email step each row is on before uploading; treated identically to any other column. |
-| Conditions: AND-only, operators: equals / contains / is empty, no nesting | Simple enough to build and verify; OR is modelled as a second condition block (first match wins). |
-| Default block is the fallback | Conditions checked top to bottom; default used only if none match. Both Subject and Body empty = skip row. |
-| Sequential (non-concurrent) AI calls | Avoids rate-limit complexity; acceptable for a single-user tool. |
-| One Runs entry per row | Each brand is an independent unit of work; per-row entries are easier to copy from than batches. |
-| Runs persist until manually cleared | User may need results across sessions; explicit Clear All gives control. |
-| Phase 1.1: Vite dev proxy `/bynara-api` → Bynara router (no extra server) | Same-origin proxy avoids CORS in dev; production calls Bynara directly. |
-| Default endpoint `https://router.bynara.id/v1` (Bynara router, OpenAI-compatible); legacy OpenCode/localhost values auto-migrated | Provider switch: no agent name (Bynara has no such concept); key (`sk-nry-…`) + model alias only. Bynara `{ error: { type } }` envelope mapped to auth/rate-limit/config errors. |
+| Single repo, separate frontend/backend folders | Simple monorepo; independent deploys via Railway services |
+| Express + pg (not ORM) | Full SQL control, minimal dependencies, easy migrations |
+| Client-side CSV parse (PapaParse) | Keeps large files off server; preview before import |
+| Backend proxies Gemini | API key never exposed to browser; single auth point |
+| Sequential generation | Avoids rate limits; simpler debugging; matches Phase 1 |
+| Cascade delete on project | Clean data hygiene; no orphaned records |
+| UUID primary keys | Distributed-friendly; no sequence conflicts |
+| JSONB for csv_data | Flexible schema; stores all CSV columns without migrations |
 
 ## Session Notes
 
-- No code exists yet.
-- Data shape for a condition block:
-  ```js
-  {
-    id: string,
-    conditions: [{ column: string, op: 'equals'|'contains'|'isEmpty', value: string }],
-    subject: string,
-    body: string,
-    prompt: string
-  }
-  ```
-- Data shape for the default block (same minus `conditions`):
-  ```js
-  { subject: string, body: string, prompt: string }
-  ```
-- localStorage key plan (to be formalised in `architecture.md`):
-  - `im_config` — AI Config values
-  - `im_templates` — `{ default: Block, conditions: ConditionBlock[] }`
-  - `im_runs` — `RunEntry[]`
-- `architecture.md` does not exist yet; create it during or before Unit 1 to define module boundaries and localStorage invariants.
-- Sample test data: trim `reachingoutsofar.csv` to 2–3 rows and commit as `src/test/sample.csv`. Do not edit the original.
+- **Frontend**: Vite + Vanilla JS + Tailwind (existing, enhanced)
+- **Backend**: Express + pg (new)
+- **Database**: PostgreSQL on Railway
+- **AI**: Google Gemini (backend-proxied)
+- **Auth**: None (single user)
+- **Testing**: User tests on Railway after each unit; no automated test suite required
+
+---
+
+(End of file)
