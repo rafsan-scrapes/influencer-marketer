@@ -2,3 +2,5 @@ csv_related_stuff/
 *.csv
 add_lead_columns.py
 filter_leadlist.py
+*.env
+.env
